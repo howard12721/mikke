@@ -39,7 +39,5 @@ replicas:
     count: 2
   - name: guess-service
     count: 2
-  - name: feed-service
-    count: 2
   - name: notification-service
     count: 2

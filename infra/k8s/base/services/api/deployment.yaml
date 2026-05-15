@@ -61,12 +61,6 @@ spec:
           value: '50055'
         - name: GUESS_SERVICE_TARGET
           value: dns:///guess-service:50055
-        - name: FEED_SERVICE_HOST
-          value: feed-service
-        - name: FEED_SERVICE_PORT
-          value: '50056'
-        - name: FEED_SERVICE_TARGET
-          value: dns:///feed-service:50056
         - name: NOTIFICATION_SERVICE_HOST
           value: notification-service
         - name: NOTIFICATION_SERVICE_PORT

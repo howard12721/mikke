@@ -51,9 +51,6 @@ jobs:
           - service: friendship-service
             context: backend
             dockerfile: backend/services/friendship-service/Dockerfile
-          - service: feed-service
-            context: backend
-            dockerfile: backend/services/feed-service/Dockerfile
           - service: media-service
             context: backend
             dockerfile: backend/services/media-service/Dockerfile

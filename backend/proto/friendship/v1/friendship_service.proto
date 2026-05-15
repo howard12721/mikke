@@ -18,7 +18,6 @@ service FriendshipService {
   rpc UnblockUser(UnblockUserRequest) returns (UnblockUserResponse);
   rpc GetFriendship(GetFriendshipRequest) returns (GetFriendshipResponse);
   rpc ListFriends(ListFriendsRequest) returns (ListFriendsResponse);
-  rpc ListFriendUserIdsForFanout(ListFriendUserIdsForFanoutRequest) returns (ListFriendUserIdsForFanoutResponse);
   rpc ListIncomingFriendRequests(ListIncomingFriendRequestsRequest) returns (ListIncomingFriendRequestsResponse);
   rpc ListOutgoingFriendRequests(ListOutgoingFriendRequestsRequest) returns (ListOutgoingFriendRequestsResponse);
   rpc BatchGetFriendshipSummaries(BatchGetFriendshipSummariesRequest) returns (BatchGetFriendshipSummariesResponse);
@@ -92,16 +91,6 @@ message ListFriendsRequest {
 }
 
 message ListFriendsResponse {
-  repeated string friend_user_ids = 1;
-  mikke.common.v1.PageInfo page_info = 2;
-}
-
-message ListFriendUserIdsForFanoutRequest {
-  string user_id = 1;
-  mikke.common.v1.PageRequest page = 2;
-}
-
-message ListFriendUserIdsForFanoutResponse {
   repeated string friend_user_ids = 1;
   mikke.common.v1.PageInfo page_info = 2;
 }

@@ -12,9 +12,9 @@ service PostService {
   rpc CreatePost(CreatePostRequest) returns (CreatePostResponse);
   rpc GetPost(GetPostRequest) returns (GetPostResponse);
   rpc BatchGetPosts(BatchGetPostsRequest) returns (BatchGetPostsResponse);
+  rpc ListVisiblePosts(ListVisiblePostsRequest) returns (ListVisiblePostsResponse);
   rpc ListUserPosts(ListUserPostsRequest) returns (ListUserPostsResponse);
   rpc ListMyPosts(ListMyPostsRequest) returns (ListMyPostsResponse);
-  rpc ListPostsForFeedBackfill(ListPostsForFeedBackfillRequest) returns (ListPostsForFeedBackfillResponse);
   rpc DeletePost(DeletePostRequest) returns (DeletePostResponse);
   rpc UpdatePostCaption(UpdatePostCaptionRequest) returns (UpdatePostCaptionResponse);
   rpc UpdatePostVisibility(UpdatePostVisibilityRequest) returns (UpdatePostVisibilityResponse);
@@ -52,6 +52,16 @@ message BatchGetPostsResponse {
   repeated Post posts = 1;
 }
 
+message ListVisiblePostsRequest {
+  string viewer_user_id = 1;
+  mikke.common.v1.PageRequest page = 2;
+}
+
+message ListVisiblePostsResponse {
+  repeated Post posts = 1;
+  mikke.common.v1.PageInfo page_info = 2;
+}
+
 message ListUserPostsRequest {
   string user_id = 1;
   mikke.common.v1.PageRequest page = 2;
@@ -67,17 +77,6 @@ message ListMyPostsRequest {
 }
 
 message ListMyPostsResponse {
-  repeated Post posts = 1;
-  mikke.common.v1.PageInfo page_info = 2;
-}
-
-message ListPostsForFeedBackfillRequest {
-  string viewer_user_id = 1;
-  string author_user_id = 2;
-  mikke.common.v1.PageRequest page = 3;
-}
-
-message ListPostsForFeedBackfillResponse {
   repeated Post posts = 1;
   mikke.common.v1.PageInfo page_info = 2;
 }

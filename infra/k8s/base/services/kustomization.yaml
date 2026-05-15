@@ -8,5 +8,4 @@ resources:
   - post-service
   - media-service
   - guess-service
-  - feed-service
   - notification-service

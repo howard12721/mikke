@@ -85,9 +85,6 @@ services:
       GUESS_SERVICE_HOST: guess-service
       GUESS_SERVICE_PORT: "50055"
       GUESS_SERVICE_TARGET: dns:///guess-service:50055
-      FEED_SERVICE_HOST: feed-service
-      FEED_SERVICE_PORT: "50056"
-      FEED_SERVICE_TARGET: dns:///feed-service:50056
       NOTIFICATION_SERVICE_HOST: notification-service
       NOTIFICATION_SERVICE_PORT: "50057"
       NOTIFICATION_SERVICE_TARGET: dns:///notification-service:50057
@@ -107,8 +104,6 @@ services:
       media-service:
         condition: service_started
       guess-service:
-        condition: service_started
-      feed-service:
         condition: service_started
       notification-service:
         condition: service_started
@@ -232,28 +227,6 @@ services:
       redis:
         condition: service_healthy
 
-  feed-service:
-    build:
-      context: ../../backend
-      dockerfile: services/feed-service/Dockerfile
-    container_name: mikke-feed-service
-    environment:
-      FEED_SERVICE_PORT: "50056"
-      MARIADB_HOST: mariadb
-      MARIADB_PORT: "3306"
-      MARIADB_DATABASE: feed_service
-      MARIADB_USER: mikke
-      MARIADB_PASSWORD: mikke
-      REDIS_HOST: redis
-      REDIS_PORT: "6379"
-    ports:
-      - "50056:50056"
-    depends_on:
-      mariadb:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
   notification-service:
     build:
       context: ../../backend
@@ -322,16 +295,6 @@ services:
       - ../k8s/base/database/migrations/guess-service:/flyway/sql:ro
     command:
       - -url=jdbc:mariadb://mariadb:3306/guess_service
-      - -user=mikke
-      - -password=mikke
-      - migrate
-
-  flyway-feed-service:
-    <<: *flyway-common
-    volumes:
-      - ../k8s/base/database/migrations/feed-service:/flyway/sql:ro
-    command:
-      - -url=jdbc:mariadb://mariadb:3306/feed_service
       - -user=mikke
       - -password=mikke
       - migrate

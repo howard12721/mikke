@@ -32,6 +32,5 @@ include(
     ":services:post-service",
     ":services:media-service",
     ":services:guess-service",
-    ":services:feed-service",
     ":services:notification-service",
 )
