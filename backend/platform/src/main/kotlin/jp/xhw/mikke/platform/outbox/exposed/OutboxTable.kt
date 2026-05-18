@@ -5,16 +5,12 @@ import jp.xhw.mikke.platform.time.toJavaInstant
 import jp.xhw.mikke.platform.time.toKotlinInstant
 import jp.xhw.mikke.platform.uuid.exposed.uuidBinary
 import jp.xhw.mikke.platform.uuid.exposed.uuidBinaryNullable
-import org.jetbrains.exposed.v1.core.ResultRow
-import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.Table
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.javatime.timestamp
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
+import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
@@ -31,6 +27,10 @@ abstract class OutboxTable(
     val causationId = uuidBinaryNullable("causation_id")
     val createdAt = timestamp("created_at")
     val publishedAt = timestamp("published_at").nullable()
+    val publishingBy = varchar("publishing_by", length = 128).nullable()
+    val publishingUntil = timestamp("publishing_until").nullable()
+    val publishAttempts = integer("publish_attempts")
+    val lastPublishError = text("last_publish_error").nullable()
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -47,28 +47,68 @@ fun OutboxTable.insertEntry(entry: OutboxEntry) {
         it[causationId] = entry.causationId
         it[createdAt] = entry.createdAt.toJavaInstant()
         it[publishedAt] = entry.publishedAt?.toJavaInstant()
+        it[publishingBy] = null
+        it[publishingUntil] = null
+        it[publishAttempts] = 0
+        it[lastPublishError] = null
     }
 }
 
-fun OutboxTable.selectUnpublished(limit: Int): List<OutboxEntry> =
-    selectAll()
-        .where { publishedAt.isNull() }
-        .orderBy(createdAt to SortOrder.ASC, id to SortOrder.ASC)
-        .limit(limit)
-        .map { it.toOutboxEntry(this) }
+fun OutboxTable.claimForPublishing(
+    publisherId: String,
+    limit: Int,
+    leaseUntil: Instant,
+    now: Instant = Clock.System.now(),
+): List<OutboxEntry> {
+    if (limit <= 0) {
+        return emptyList()
+    }
 
-fun OutboxTable.markPublished(
-    ids: Collection<Uuid>,
+    val nowJava = now.toJavaInstant()
+    val candidates =
+        selectAll()
+            .where {
+                publishedAt.isNull() and (publishingUntil.isNull() or (publishingUntil less nowJava))
+            }.orderBy(createdAt to SortOrder.ASC, id to SortOrder.ASC)
+            .limit(limit)
+            .map { it.toOutboxEntry(this) }
+
+    return candidates.filter { entry ->
+        update({
+            (id eq entry.id) and
+                publishedAt.isNull() and
+                (publishingUntil.isNull() or (publishingUntil less nowJava))
+        }) {
+            it[publishingBy] = publisherId
+            it[publishingUntil] = leaseUntil.toJavaInstant()
+            it[publishAttempts] = entry.publishAttempts + 1
+            it[lastPublishError] = null
+        } == 1
+    }
+}
+
+fun OutboxTable.markPublishedByPublisher(
+    id: Uuid,
+    publisherId: String,
     publishedAt: Instant,
-) {
-    if (ids.isEmpty()) {
-        return
-    }
-
-    update({ (id inList ids) and this.publishedAt.isNull() }) {
+): Boolean =
+    update({ (this.id eq id) and (this.publishedAt.isNull()) and (publishingBy eq publisherId) }) {
         it[this.publishedAt] = publishedAt.toJavaInstant()
-    }
-}
+        it[publishingBy] = null
+        it[publishingUntil] = null
+        it[lastPublishError] = null
+    } == 1
+
+fun OutboxTable.releasePublishClaim(
+    id: Uuid,
+    publisherId: String,
+    error: String,
+): Boolean =
+    update({ (this.id eq id) and (publishedAt.isNull()) and (publishingBy eq publisherId) }) {
+        it[publishingBy] = null
+        it[publishingUntil] = null
+        it[lastPublishError] = error.take(4096)
+    } == 1
 
 private fun ResultRow.toOutboxEntry(table: OutboxTable): OutboxEntry =
     OutboxEntry(
@@ -82,4 +122,5 @@ private fun ResultRow.toOutboxEntry(table: OutboxTable): OutboxEntry =
         causationId = this[table.causationId],
         createdAt = this[table.createdAt].toKotlinInstant(),
         publishedAt = this[table.publishedAt]?.toKotlinInstant(),
+        publishAttempts = this[table.publishAttempts],
     )

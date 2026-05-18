@@ -1,6 +1,7 @@
 package jp.xhw.mikke.platform.redis
 
 import io.lettuce.core.*
+import io.lettuce.core.api.sync.RedisCommands
 import io.lettuce.core.api.sync.RedisStreamCommands
 import io.lettuce.core.models.stream.PendingMessage
 import java.time.Duration
@@ -10,11 +11,53 @@ data class RedisStreamRecord(
     val fields: Map<String, String>,
 )
 
+data class RedisStreamAppendResult(
+    val appended: Boolean,
+    val messageId: String?,
+)
+
 class RedisStreamProducer(
-    private val commands: RedisStreamCommands<String, String>,
+    private val commands: RedisCommands<String, String>,
     private val streamName: String,
 ) {
-    fun append(fields: Map<String, String>): String = commands.xadd(streamName, fields)
+    private val dedupeKey = "$streamName:published-event-ids"
+
+    fun appendDeduplicated(
+        eventId: String,
+        fields: Map<String, String>,
+    ): RedisStreamAppendResult {
+        require(eventId.isNotBlank()) { "eventId must not be blank" }
+        require(fields.isNotEmpty()) { "fields must not be empty" }
+
+        val args = mutableListOf(eventId)
+        fields.forEach { (key, value) ->
+            args += key
+            args += value
+        }
+
+        val messageId =
+            commands.eval<String>(
+                DEDUPLICATED_XADD_SCRIPT,
+                ScriptOutputType.VALUE,
+                arrayOf(streamName, dedupeKey),
+                *args.toTypedArray(),
+            )
+
+        return RedisStreamAppendResult(
+            appended = !messageId.isNullOrEmpty(),
+            messageId = messageId.takeUnless { it.isNullOrEmpty() },
+        )
+    }
+
+    private companion object {
+        private const val DEDUPLICATED_XADD_SCRIPT =
+            """
+            if redis.call('SADD', KEYS[2], ARGV[1]) == 1 then
+              return redis.call('XADD', KEYS[1], '*', unpack(ARGV, 2))
+            end
+            return ''
+            """
+    }
 }
 
 class RedisStreamConsumerGroup(

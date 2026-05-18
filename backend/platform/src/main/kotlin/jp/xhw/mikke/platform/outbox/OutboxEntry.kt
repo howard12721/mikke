@@ -14,4 +14,5 @@ data class OutboxEntry(
     val causationId: Uuid? = null,
     val createdAt: Instant,
     val publishedAt: Instant? = null,
+    val publishAttempts: Int = 0,
 )
