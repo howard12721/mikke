@@ -12,11 +12,13 @@ dependencies {
     implementation(libs.grpc.stub)
     implementation(libs.grpc.kotlin.stub)
     implementation(libs.grpc.services)
+    implementation(libs.protobuf.kotlin)
     implementation(libs.redis.client)
     implementation(libs.hikari.cp)
     implementation(libs.mariadb.client)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
+    implementation(libs.exposed.java.time)
     implementation(libs.kotlin.logging)
     implementation(libs.opentelemetry.api)
     implementation(libs.opentelemetry.sdk)
@@ -28,4 +30,5 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
