@@ -44,10 +44,11 @@ class RedisOutboxPublisher(
 
         claimed.forEach { entry ->
             try {
-                val result = producer.appendDeduplicated(
-                    eventId = entry.id.toString(),
-                    fields = entry.toRedisStreamFields(producerName),
-                )
+                val result =
+                    producer.appendDeduplicated(
+                        eventId = entry.id.toString(),
+                        fields = entry.toRedisStreamFields(producerName),
+                    )
 
                 if (result.appended) {
                     published += 1
