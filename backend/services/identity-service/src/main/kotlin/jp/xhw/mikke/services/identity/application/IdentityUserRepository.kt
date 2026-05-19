@@ -1,8 +1,7 @@
 package jp.xhw.mikke.services.identity.application
 
-import jp.xhw.mikke.services.identity.model.Email
-import jp.xhw.mikke.services.identity.model.IdentityUser
-import jp.xhw.mikke.services.identity.model.UserId
+import jp.xhw.mikke.services.identity.model.*
+import kotlin.time.Instant
 
 interface IdentityUserRepository {
     fun saveUser(user: IdentityUser)
@@ -12,6 +11,20 @@ interface IdentityUserRepository {
     fun findByEmails(emails: List<Email>): List<IdentityUser>
 
     fun findByIds(ids: List<UserId>): List<IdentityUser>
+
+    fun searchByUsernamePrefix(
+        normalizedPrefix: String,
+        limit: Int,
+        cursor: SearchUsersCursor?,
+    ): List<IdentityUser>
+
+    fun updateProfile(user: IdentityUser)
+
+    fun deactivate(
+        userId: UserId,
+        deactivatedAt: Instant,
+        updatedAt: Instant,
+    ): Boolean
 }
 
 class DuplicateIdentityUserException(
