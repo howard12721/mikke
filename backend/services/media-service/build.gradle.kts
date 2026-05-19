@@ -21,10 +21,14 @@ sourceSets {
 
 dependencies {
     implementation(project(":platform"))
-    implementation(project(":events:post-events"))
+    implementation(project(":events:media-events"))
 
     implementation(libs.bundles.grpc.server)
     implementation(libs.bundles.database)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.exposed.java.time)
+    implementation(libs.aws.s3)
     implementation(libs.redis.client)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
