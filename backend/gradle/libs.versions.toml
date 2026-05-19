@@ -17,6 +17,7 @@ kotlin-logging = "8.0.03"
 opentelemetry = "1.62.0"
 junit = "6.1.0"
 ktlint-plugin = "14.2.0"
+aws-sdk = "2.31.36"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
@@ -59,6 +60,7 @@ opentelemetry-exporter-otlp = { module = "io.opentelemetry:opentelemetry-exporte
 
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+aws-s3 = { module = "software.amazon.awssdk:s3", version.ref = "aws-sdk" }
 
 [bundles]
 ktor-server = [
