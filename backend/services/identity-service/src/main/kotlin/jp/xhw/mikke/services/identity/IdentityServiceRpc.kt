@@ -3,7 +3,12 @@ package jp.xhw.mikke.services.identity
 import io.grpc.Status
 import jp.xhw.mikke.identity.v1.*
 import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
+import jp.xhw.mikke.platform.grpc.ValidationException
+import jp.xhw.mikke.platform.grpc.currentAuthenticatedUser
+import jp.xhw.mikke.platform.pagination.PageRequestInput
+import jp.xhw.mikke.platform.pagination.validate
 import jp.xhw.mikke.services.identity.application.*
+import jp.xhw.mikke.services.identity.model.SearchUsersCursor
 
 class IdentityServiceRpc(
     private val identityService: IdentityService,
@@ -73,6 +78,85 @@ class IdentityServiceRpc(
             .setUser(user.toProto())
             .build()
     }
+
+    override suspend fun getUser(request: GetUserRequest): GetUserResponse {
+        val user = execute { identityService.getUser(parseUserId(request.userId.requireField("user_id"))) }
+
+        return GetUserResponse
+            .newBuilder()
+            .setUser(user.toPublicProto())
+            .build()
+    }
+
+    override suspend fun batchGetUsers(request: BatchGetUsersRequest): BatchGetUsersResponse {
+        val users =
+            execute {
+                identityService.batchGetUsers(
+                    request.userIdsList.map { parseUserId(it.requireField("user_id")) },
+                )
+            }
+
+        return BatchGetUsersResponse
+            .newBuilder()
+            .addAllUsers(users.map { it.toPublicProto() })
+            .build()
+    }
+
+    override suspend fun searchUsers(request: SearchUsersRequest): SearchUsersResponse {
+        val page =
+            execute {
+                PageRequestInput(
+                    pageSize = request.page.pageSize,
+                    pageToken = request.page.pageToken,
+                ).validate<SearchUsersCursor>(
+                    cursorDecoder = SearchUsersCursor::decode,
+                )
+            }
+
+        val result =
+            execute {
+                identityService.searchUsers(
+                    query = request.query.requireField("query"),
+                    page = page,
+                )
+            }
+
+        return SearchUsersResponse
+            .newBuilder()
+            .addAllUsers(result.items.map { it.toPublicProto() })
+            .setPageInfo(result.toPageInfo())
+            .build()
+    }
+
+    override suspend fun updateProfile(request: UpdateProfileRequest): UpdateProfileResponse {
+        val userId = currentAuthenticatedUser()
+
+        val user =
+            execute {
+                identityService.updateProfile(
+                    subject = userId.toString(),
+                    command =
+                        UpdateProfileCommand(
+                            username = request.username.takeIf { it.isNotBlank() },
+                            displayName = request.displayName.takeIf { it.isNotBlank() },
+                            avatarMediaId = parseAvatarMediaIdOrNull(request.avatarMediaId),
+                        ),
+                )
+            }
+
+        return UpdateProfileResponse
+            .newBuilder()
+            .setUser(user.toProto())
+            .build()
+    }
+
+    override suspend fun deactivateAccount(request: DeactivateAccountRequest): DeactivateAccountResponse {
+        val userId = currentAuthenticatedUser()
+
+        execute { identityService.deactivateAccount(userId.toString()) }
+
+        return DeactivateAccountResponse.getDefaultInstance()
+    }
 }
 
 private fun String.requireField(fieldName: String): String =
@@ -84,6 +168,8 @@ private inline fun <T> execute(block: () -> T): T =
         block()
     } catch (e: IdentityApplicationException) {
         throw e.toStatus().asRuntimeException()
+    } catch (e: ValidationException) {
+        throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
     }
 
 private fun IdentityApplicationException.toStatus(): Status =

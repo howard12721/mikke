@@ -2,6 +2,7 @@ package jp.xhw.mikke.services.identity.application
 
 import jp.xhw.mikke.services.identity.model.RefreshSession
 import jp.xhw.mikke.services.identity.model.RefreshSessionId
+import jp.xhw.mikke.services.identity.model.UserId
 import kotlin.time.Instant
 
 interface RefreshSessionRepository {
@@ -18,4 +19,9 @@ interface RefreshSessionRepository {
         refreshTokenHash: String,
         revokedAt: Instant,
     ): Boolean
+
+    fun revokeAllForUser(
+        userId: UserId,
+        revokedAt: Instant,
+    )
 }

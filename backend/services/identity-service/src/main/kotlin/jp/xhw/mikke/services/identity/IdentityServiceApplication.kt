@@ -8,6 +8,7 @@ import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
 import jp.xhw.mikke.platform.grpc.grpcServer
 import jp.xhw.mikke.platform.grpc.installGrpcHealth
 import jp.xhw.mikke.platform.grpc.startAndAwait
+import jp.xhw.mikke.services.identity.application.ExposedIdentityUserOutbox
 import jp.xhw.mikke.services.identity.application.IdentityService
 import jp.xhw.mikke.services.identity.application.PasswordHasher
 import jp.xhw.mikke.services.identity.application.RefreshSessionTokenService
@@ -19,6 +20,7 @@ fun main() {
     val database = connectMariaDbFromEnv(defaultDatabase = "identity_service")
     val userRepository = ExposedIdentityUserRepository()
     val refreshSessionRepository = ExposedRefreshSessionRepository()
+    val userOutbox = ExposedIdentityUserOutbox()
     val transactionRunner = ExposedTransactionRunner(database)
     val tokenService = JwtTokenService(secret = System.getenv("IDENTITY_JWT_SECRET") ?: "dev-identity-secret")
     val refreshSessionTokenService = RefreshSessionTokenService()
@@ -26,6 +28,7 @@ fun main() {
         IdentityService(
             userRepository = userRepository,
             refreshSessionRepository = refreshSessionRepository,
+            userOutbox = userOutbox,
             transactionRunner = transactionRunner,
             passwordHasher = passwordHasher,
             tokenService = tokenService,
