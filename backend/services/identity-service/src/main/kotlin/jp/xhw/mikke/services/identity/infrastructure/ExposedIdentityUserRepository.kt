@@ -131,15 +131,11 @@ class ExposedIdentityUserRepository : IdentityUserRepository {
     override fun updateProfile(user: IdentityUser) {
         try {
             IdentityUsersTable.update({ IdentityUsersTable.id eq user.id.value }) { row ->
-                row[email] = user.email.value
-                row[normalizedEmail] = user.email.value.normalizeEmail()
                 row[username] = user.username.value
                 row[normalizedUsername] = user.username.value.normalizeUsername()
                 row[displayName] = user.displayName.value
                 row[avatarMediaId] = user.avatarMediaId?.value
-                row[status] = user.status.toDatabaseValue()
                 row[updatedAt] = user.updatedAt.toJavaInstant()
-                row[deactivatedAt] = user.deactivatedAt?.toJavaInstant()
             }
         } catch (e: ExposedSQLException) {
             if (e.isUniqueConstraintViolation()) {
