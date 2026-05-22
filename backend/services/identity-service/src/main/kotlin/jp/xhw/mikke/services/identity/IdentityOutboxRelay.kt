@@ -37,7 +37,8 @@ fun startIdentityOutboxRelay(transactionRunner: TransactionRunner) {
                 try {
                     publisher.publishBatch()
                 } catch (e: Exception) {
-                    println("identity outbox relay publish failed: ${e.message ?: e::class.qualifiedName}")
+                    System.err.println("identity outbox relay publish failed: ${e.message ?: e::class.qualifiedName}")
+                    e.printStackTrace(System.err)
                 }
 
                 try {
