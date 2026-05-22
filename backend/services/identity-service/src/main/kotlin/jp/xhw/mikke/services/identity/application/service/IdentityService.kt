@@ -145,7 +145,10 @@ class IdentityService(
                 ?: throw UserNotFoundException()
 
         return transactionRunner.runInTransaction {
-            userRepository.findByIds(listOf(userId)).firstOrNull()
+            userRepository
+                .findByIds(listOf(userId))
+                .firstOrNull()
+                ?.takeIf { it.canAuthenticate() }
                 ?: throw UserNotFoundException()
         }
     }
