@@ -24,6 +24,9 @@ dependencies {
     implementation(project(":events:post-events"))
 
     implementation(libs.bundles.grpc.server)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.exposed.java.time)
     implementation(libs.bundles.database)
     implementation(libs.redis.client)
     implementation(libs.kotlinx.coroutines.core)
@@ -33,4 +36,5 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
