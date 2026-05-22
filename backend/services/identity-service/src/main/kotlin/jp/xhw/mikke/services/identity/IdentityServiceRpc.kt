@@ -1,42 +1,32 @@
 package jp.xhw.mikke.services.identity
 
 import io.grpc.Status
-import io.grpc.StatusException
-import io.grpc.StatusRuntimeException
 import jp.xhw.mikke.identity.v1.*
 import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
-import jp.xhw.mikke.platform.grpc.ValidationException
 import jp.xhw.mikke.platform.grpc.currentAuthenticatedUser
 import jp.xhw.mikke.platform.pagination.PageRequestInput
 import jp.xhw.mikke.platform.pagination.validate
 import jp.xhw.mikke.services.identity.application.command.LoginIdentityUserCommand
 import jp.xhw.mikke.services.identity.application.command.RegisterIdentityUserCommand
 import jp.xhw.mikke.services.identity.application.command.UpdateProfileCommand
-import jp.xhw.mikke.services.identity.application.exception.*
 import jp.xhw.mikke.services.identity.application.input.parseAvatarMediaIdOrNull
 import jp.xhw.mikke.services.identity.application.input.parseUserId
 import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
 import jp.xhw.mikke.services.identity.application.service.IdentityService
-import java.util.logging.Level
-import java.util.logging.Logger
-
-private val logger: Logger = Logger.getLogger(IdentityServiceRpc::class.java.name)
 
 class IdentityServiceRpc(
     private val identityService: IdentityService,
 ) : IdentityServiceGrpcKt.IdentityServiceCoroutineImplBase() {
     override suspend fun registerUser(request: RegisterUserRequest): RegisterUserResponse {
         val result =
-            execute {
-                identityService.register(
-                    RegisterIdentityUserCommand(
-                        email = request.email.requireField("email"),
-                        username = request.username.requireField("username"),
-                        displayName = request.displayName.requireField("display_name"),
-                        password = request.password.requireField("password"),
-                    ),
-                )
-            }
+            identityService.register(
+                RegisterIdentityUserCommand(
+                    email = request.email.requireField("email"),
+                    username = request.username.requireField("username"),
+                    displayName = request.displayName.requireField("display_name"),
+                    password = request.password.requireField("password"),
+                ),
+            )
 
         return RegisterUserResponse
             .newBuilder()
@@ -47,14 +37,12 @@ class IdentityServiceRpc(
 
     override suspend fun loginUser(request: LoginUserRequest): LoginUserResponse {
         val result =
-            execute {
-                identityService.login(
-                    LoginIdentityUserCommand(
-                        loginId = request.loginId.requireField("login_id"),
-                        password = request.password.requireField("password"),
-                    ),
-                )
-            }
+            identityService.login(
+                LoginIdentityUserCommand(
+                    loginId = request.loginId.requireField("login_id"),
+                    password = request.password.requireField("password"),
+                ),
+            )
 
         return LoginUserResponse
             .newBuilder()
@@ -64,7 +52,7 @@ class IdentityServiceRpc(
     }
 
     override suspend fun refreshSession(request: RefreshSessionRequest): RefreshSessionResponse {
-        val session = execute { identityService.refreshSession(request.refreshToken.requireField("refresh_token")) }
+        val session = identityService.refreshSession(request.refreshToken.requireField("refresh_token"))
 
         return RefreshSessionResponse
             .newBuilder()
@@ -73,7 +61,7 @@ class IdentityServiceRpc(
     }
 
     override suspend fun logoutSession(request: LogoutSessionRequest): LogoutSessionResponse {
-        execute { identityService.logout(request.refreshToken.requireField("refresh_token")) }
+        identityService.logout(request.refreshToken.requireField("refresh_token"))
 
         return LogoutSessionResponse.getDefaultInstance()
     }
@@ -83,7 +71,7 @@ class IdentityServiceRpc(
             GrpcAuthContext.currentPrincipal()
                 ?: throw Status.UNAUTHENTICATED.withDescription("Authentication required").asRuntimeException()
 
-        val user = execute { identityService.getMe(principal.subject) }
+        val user = identityService.getMe(principal.subject)
 
         return GetMeResponse
             .newBuilder()
@@ -92,7 +80,7 @@ class IdentityServiceRpc(
     }
 
     override suspend fun getUser(request: GetUserRequest): GetUserResponse {
-        val user = execute { identityService.getUser(parseUserId(request.userId.requireField("user_id"))) }
+        val user = identityService.getUser(parseUserId(request.userId.requireField("user_id")))
 
         return GetUserResponse
             .newBuilder()
@@ -102,11 +90,9 @@ class IdentityServiceRpc(
 
     override suspend fun batchGetUsers(request: BatchGetUsersRequest): BatchGetUsersResponse {
         val users =
-            execute {
-                identityService.batchGetUsers(
-                    request.userIdsList.map { parseUserId(it.requireField("user_id")) },
-                )
-            }
+            identityService.batchGetUsers(
+                request.userIdsList.map { parseUserId(it.requireField("user_id")) },
+            )
 
         return BatchGetUsersResponse
             .newBuilder()
@@ -116,22 +102,18 @@ class IdentityServiceRpc(
 
     override suspend fun searchUsers(request: SearchUsersRequest): SearchUsersResponse {
         val page =
-            execute {
-                PageRequestInput(
-                    pageSize = request.page.pageSize,
-                    pageToken = request.page.pageToken,
-                ).validate<SearchUsersCursor>(
-                    cursorDecoder = SearchUsersCursor::decode,
-                )
-            }
+            PageRequestInput(
+                pageSize = request.page.pageSize,
+                pageToken = request.page.pageToken,
+            ).validate<SearchUsersCursor>(
+                cursorDecoder = SearchUsersCursor::decode,
+            )
 
         val result =
-            execute {
-                identityService.searchUsers(
-                    query = request.query.requireField("query"),
-                    page = page,
-                )
-            }
+            identityService.searchUsers(
+                query = request.query.requireField("query"),
+                page = page,
+            )
 
         return SearchUsersResponse
             .newBuilder()
@@ -142,8 +124,7 @@ class IdentityServiceRpc(
 
     override suspend fun updateProfile(request: UpdateProfileRequest): UpdateProfileResponse {
         val user =
-            execute {
-                val userId = currentAuthenticatedUser()
+            currentAuthenticatedUser().let { userId ->
                 identityService.updateProfile(
                     subject = userId.toString(),
                     command =
@@ -162,10 +143,7 @@ class IdentityServiceRpc(
     }
 
     override suspend fun deactivateAccount(request: DeactivateAccountRequest): DeactivateAccountResponse {
-        execute {
-            val userId = currentAuthenticatedUser()
-            identityService.deactivateAccount(userId.toString())
-        }
+        identityService.deactivateAccount(currentAuthenticatedUser().toString())
 
         return DeactivateAccountResponse.getDefaultInstance()
     }
@@ -174,31 +152,3 @@ class IdentityServiceRpc(
 private fun String.requireField(fieldName: String): String =
     trim().takeIf { it.isNotEmpty() }
         ?: throw Status.INVALID_ARGUMENT.withDescription("$fieldName is required").asRuntimeException()
-
-private inline fun <T> execute(block: () -> T): T =
-    try {
-        block()
-    } catch (e: StatusRuntimeException) {
-        throw e
-    } catch (e: StatusException) {
-        throw e
-    } catch (e: IdentityApplicationException) {
-        throw e.toStatus().withCause(e).asRuntimeException()
-    } catch (e: ValidationException) {
-        throw Status.INVALID_ARGUMENT.withDescription(e.message).withCause(e).asRuntimeException()
-    } catch (e: Exception) {
-        logger.log(Level.SEVERE, "Unhandled identity-service RPC exception", e)
-        throw Status.INTERNAL
-            .withDescription("Internal identity service error")
-            .withCause(e)
-            .asRuntimeException()
-    }
-
-private fun IdentityApplicationException.toStatus(): Status =
-    when (this) {
-        is InvalidIdentityInputException -> Status.INVALID_ARGUMENT.withDescription(message)
-        is DuplicateIdentityUserException -> Status.ALREADY_EXISTS.withDescription(message)
-        is InvalidCredentialsException -> Status.UNAUTHENTICATED.withDescription(message)
-        is InvalidRefreshTokenException -> Status.UNAUTHENTICATED.withDescription(message)
-        is UserNotFoundException -> Status.NOT_FOUND.withDescription(message)
-    }

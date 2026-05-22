@@ -5,6 +5,7 @@ import jp.xhw.mikke.platform.auth.grpc.bearerToken
 import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
 import jp.xhw.mikke.platform.database.connectMariaDbFromEnv
 import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
+import jp.xhw.mikke.platform.grpc.GrpcServerExceptionHandling
 import jp.xhw.mikke.platform.grpc.InternalRpcServerInterceptor
 import jp.xhw.mikke.platform.grpc.grpcServer
 import jp.xhw.mikke.platform.grpc.installGrpcHealth
@@ -13,6 +14,7 @@ import jp.xhw.mikke.platform.outbox.OutboxRelay
 import jp.xhw.mikke.platform.outbox.RedisOutboxPublisher
 import jp.xhw.mikke.platform.redis.RedisStreamProducer
 import jp.xhw.mikke.platform.redis.connectRedisFromEnv
+import jp.xhw.mikke.services.friendship.application.exception.FriendshipApplicationException
 import jp.xhw.mikke.services.friendship.application.service.FriendshipService
 import jp.xhw.mikke.services.friendship.infrastructure.ExposedBlockRepository
 import jp.xhw.mikke.services.friendship.infrastructure.ExposedFriendRequestRepository
@@ -68,7 +70,19 @@ fun main() {
         },
     )
 
-    grpcServer(serviceName = "friendship-service", portEnv = "FRIENDSHIP_SERVICE_PORT", defaultPort = 50052) {
+    grpcServer(
+        serviceName = "friendship-service",
+        portEnv = "FRIENDSHIP_SERVICE_PORT",
+        defaultPort = 50052,
+        exceptionHandling =
+            GrpcServerExceptionHandling(
+                internalErrorDescription = "Internal friendship service error",
+                domainExceptionMapper =
+                    { throwable ->
+                        (throwable as? FriendshipApplicationException)?.toGrpcStatus()
+                    },
+            ),
+    ) {
         installGrpcHealth(serviceName = "friendship-service")
         intercept(InternalRpcServerInterceptor())
         intercept(

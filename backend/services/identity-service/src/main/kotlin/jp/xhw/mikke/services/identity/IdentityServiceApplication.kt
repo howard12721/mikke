@@ -5,9 +5,11 @@ import jp.xhw.mikke.platform.auth.grpc.bearerToken
 import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
 import jp.xhw.mikke.platform.database.connectMariaDbFromEnv
 import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
+import jp.xhw.mikke.platform.grpc.GrpcServerExceptionHandling
 import jp.xhw.mikke.platform.grpc.grpcServer
 import jp.xhw.mikke.platform.grpc.installGrpcHealth
 import jp.xhw.mikke.platform.grpc.startAndAwait
+import jp.xhw.mikke.services.identity.application.exception.IdentityApplicationException
 import jp.xhw.mikke.services.identity.application.security.PasswordHasher
 import jp.xhw.mikke.services.identity.application.security.RefreshSessionTokenService
 import jp.xhw.mikke.services.identity.application.service.IdentityService
@@ -37,7 +39,19 @@ fun main() {
     val identityService = IdentityServiceRpc(identityService = identityApplicationService)
     startIdentityOutboxRelay(transactionRunner)
 
-    grpcServer(serviceName = "identity-service", portEnv = "IDENTITY_SERVICE_PORT", defaultPort = 50051) {
+    grpcServer(
+        serviceName = "identity-service",
+        portEnv = "IDENTITY_SERVICE_PORT",
+        defaultPort = 50051,
+        exceptionHandling =
+            GrpcServerExceptionHandling(
+                internalErrorDescription = "Internal identity service error",
+                domainExceptionMapper =
+                    { throwable ->
+                        (throwable as? IdentityApplicationException)?.toGrpcStatus()
+                    },
+            ),
+    ) {
         installGrpcHealth(serviceName = "identity-service")
         intercept(
             GrpcAuthServerInterceptor(

@@ -7,8 +7,10 @@ import jp.xhw.mikke.platform.auth.AuthenticatedPrincipal
 import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
 import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
 import jp.xhw.mikke.platform.database.TransactionRunner
+import jp.xhw.mikke.platform.grpc.toGrpcStatusRuntimeException
 import jp.xhw.mikke.platform.outbox.OutboxEntry
 import jp.xhw.mikke.services.identity.application.exception.DuplicateIdentityUserException
+import jp.xhw.mikke.services.identity.application.exception.IdentityApplicationException
 import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
 import jp.xhw.mikke.services.identity.application.port.IdentityUserOutbox
 import jp.xhw.mikke.services.identity.application.port.IdentityUserRepository
@@ -21,6 +23,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.util.logging.Logger
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -301,7 +304,7 @@ class IdentityServiceRpcTest {
     }
 }
 
-private suspend fun <T> withIdentityUser(
+private fun <T> withIdentityUser(
     userId: String,
     block: suspend () -> T,
 ): T =
@@ -320,7 +323,17 @@ private suspend inline fun assertStatus(
         } catch (e: Throwable) {
             e
         } ?: throw AssertionError("Expected gRPC status $expectedCode")
-    val status = Status.fromThrowable(thrown)
+    val status =
+        Status.fromThrowable(
+            thrown.toGrpcStatusRuntimeException(
+                logger = Logger.getLogger(IdentityServiceRpcTest::class.java.name),
+                serviceName = "identity-service",
+                internalErrorDescription = "Internal identity service error",
+                domainExceptionMapper = { throwable ->
+                    (throwable as? IdentityApplicationException)?.toGrpcStatus()
+                },
+            ),
+        )
     assertEquals(expectedCode, status.code)
     return status
 }
@@ -366,7 +379,8 @@ private open class RecordingIdentityUserRepository(
             ?.takeIf {
                 it.username.value
                     .lowercase()
-                    .startsWith(normalizedPrefix) && it.status == IdentityUserStatus.ACTIVE
+                    .startsWith(normalizedPrefix) &&
+                    it.status == IdentityUserStatus.ACTIVE
             }?.let(::listOf)
             .orEmpty()
             .take(limit)

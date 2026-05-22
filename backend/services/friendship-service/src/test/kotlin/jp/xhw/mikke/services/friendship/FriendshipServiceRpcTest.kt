@@ -8,9 +8,11 @@ import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
 import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.grpc.InternalCallerContext
 import jp.xhw.mikke.platform.grpc.InternalRpcContext
+import jp.xhw.mikke.platform.grpc.toGrpcStatusRuntimeException
 import jp.xhw.mikke.platform.outbox.OutboxEntry
 import jp.xhw.mikke.services.friendship.application.exception.DuplicateFriendRequestException
 import jp.xhw.mikke.services.friendship.application.exception.FriendRequestNotFoundException
+import jp.xhw.mikke.services.friendship.application.exception.FriendshipApplicationException
 import jp.xhw.mikke.services.friendship.application.exception.FriendshipNotFoundException
 import jp.xhw.mikke.services.friendship.application.port.BlockRepository
 import jp.xhw.mikke.services.friendship.application.port.FriendRequestRepository
@@ -28,6 +30,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
+import java.util.logging.Logger
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -428,7 +431,17 @@ private suspend inline fun assertStatus(
         } catch (e: Throwable) {
             e
         } ?: throw AssertionError("Expected gRPC status $expectedCode")
-    val status = Status.fromThrowable(thrown)
+    val status =
+        Status.fromThrowable(
+            thrown.toGrpcStatusRuntimeException(
+                logger = Logger.getLogger(FriendshipServiceRpcTest::class.java.name),
+                serviceName = "friendship-service",
+                internalErrorDescription = "Internal friendship service error",
+                domainExceptionMapper = { throwable ->
+                    (throwable as? FriendshipApplicationException)?.toGrpcStatus()
+                },
+            ),
+        )
     assertEquals(expectedCode, status.code)
     return status
 }
