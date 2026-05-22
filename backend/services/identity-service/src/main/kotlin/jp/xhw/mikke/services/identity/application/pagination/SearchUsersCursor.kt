@@ -1,4 +1,4 @@
-package jp.xhw.mikke.services.identity.model
+package jp.xhw.mikke.services.identity.application.pagination
 
 import jp.xhw.mikke.platform.grpc.ValidationException
 import jp.xhw.mikke.platform.pagination.PaginationCursor

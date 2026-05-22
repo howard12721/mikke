@@ -1,4 +1,4 @@
-package jp.xhw.mikke.services.identity.application
+package jp.xhw.mikke.services.identity.application.security
 
 import jp.xhw.mikke.platform.auth.IssuedToken
 import java.nio.charset.StandardCharsets

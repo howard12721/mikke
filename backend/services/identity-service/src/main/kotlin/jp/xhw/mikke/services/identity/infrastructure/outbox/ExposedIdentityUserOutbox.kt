@@ -1,30 +1,19 @@
-package jp.xhw.mikke.services.identity.application
+package jp.xhw.mikke.services.identity.infrastructure.outbox
 
 import jp.xhw.mikke.events.user.UserEventTypes
 import jp.xhw.mikke.platform.outbox.OutboxEntry
 import jp.xhw.mikke.platform.outbox.exposed.OutboxTable
 import jp.xhw.mikke.platform.outbox.exposed.insertEntry
 import jp.xhw.mikke.platform.uuid.formatGrpcUuid
+import jp.xhw.mikke.services.identity.application.port.IdentityUserOutbox
 import jp.xhw.mikke.services.identity.model.IdentityUser
 import jp.xhw.mikke.services.identity.model.UserId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
-
-interface IdentityUserOutbox {
-    fun appendUserCreated(user: IdentityUser)
-
-    fun appendProfileUpdated(user: IdentityUser)
-
-    fun appendUserDeactivated(
-        userId: UserId,
-        deactivatedAt: Instant,
-    )
-}
 
 class ExposedIdentityUserOutbox(
     private val clock: Clock = Clock.System,
@@ -103,7 +92,7 @@ class ExposedIdentityUserOutbox(
     }
 }
 
-private object IdentityOutboxTable : OutboxTable("identity_outbox")
+object IdentityOutboxTable : OutboxTable("identity_outbox")
 
 @Serializable
 private data class UserCreatedPayload(

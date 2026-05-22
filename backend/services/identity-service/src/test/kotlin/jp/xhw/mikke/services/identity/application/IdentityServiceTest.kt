@@ -6,6 +6,18 @@ import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.outbox.OutboxEntry
 import jp.xhw.mikke.platform.pagination.PageRequestInput
 import jp.xhw.mikke.platform.pagination.validate
+import jp.xhw.mikke.services.identity.application.command.AuthenticatedIdentityUser
+import jp.xhw.mikke.services.identity.application.command.LoginIdentityUserCommand
+import jp.xhw.mikke.services.identity.application.command.RegisterIdentityUserCommand
+import jp.xhw.mikke.services.identity.application.command.UpdateProfileCommand
+import jp.xhw.mikke.services.identity.application.exception.*
+import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
+import jp.xhw.mikke.services.identity.application.port.IdentityUserOutbox
+import jp.xhw.mikke.services.identity.application.port.IdentityUserRepository
+import jp.xhw.mikke.services.identity.application.port.RefreshSessionRepository
+import jp.xhw.mikke.services.identity.application.security.PasswordHasher
+import jp.xhw.mikke.services.identity.application.security.RefreshSessionTokenService
+import jp.xhw.mikke.services.identity.application.service.IdentityService
 import jp.xhw.mikke.services.identity.model.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -277,6 +289,26 @@ class IdentityServiceTest {
     }
 
     @Test
+    fun `login rejects user deactivated after password verification`() {
+        val repository = RecordingIdentityUserRepository()
+        val service = createService(repository)
+        val registered = registerAlice(service)
+
+        repository.loginUser = registered.user
+        repository.savedUser = registered.user.copy(status = IdentityUserStatus.DEACTIVATED)
+
+        assertThrows(InvalidCredentialsException::class.java) {
+            service.login(
+                LoginIdentityUserCommand(
+                    loginId = "alice@example.com",
+                    password = "password123",
+                ),
+            )
+        }
+        assertEquals(1, repository.refreshSessions.sessions.size)
+    }
+
+    @Test
     fun `user created outbox payload contains expected fields`() {
         val repository = RecordingIdentityUserRepository()
         val service = createService(repository)
@@ -356,6 +388,7 @@ private class RecordingIdentityUserRepository :
     IdentityUserRepository,
     IdentityUserOutbox {
     var savedUser: IdentityUser? = null
+    var loginUser: IdentityUser? = null
     var duplicateOnSave: Boolean = false
     var duplicateOnUpdate: Boolean = false
     val refreshSessions = RecordingRefreshSessionRepository()
@@ -369,7 +402,7 @@ private class RecordingIdentityUserRepository :
         savedUser = user
     }
 
-    override fun findByLogin(login: String): IdentityUser? = savedUser
+    override fun findByLogin(login: String): IdentityUser? = loginUser ?: savedUser
 
     override fun findByEmails(emails: List<Email>): List<IdentityUser> = emptyList()
 

@@ -7,8 +7,14 @@ import jp.xhw.mikke.platform.grpc.ValidationException
 import jp.xhw.mikke.platform.grpc.currentAuthenticatedUser
 import jp.xhw.mikke.platform.pagination.PageRequestInput
 import jp.xhw.mikke.platform.pagination.validate
-import jp.xhw.mikke.services.identity.application.*
-import jp.xhw.mikke.services.identity.model.SearchUsersCursor
+import jp.xhw.mikke.services.identity.application.command.LoginIdentityUserCommand
+import jp.xhw.mikke.services.identity.application.command.RegisterIdentityUserCommand
+import jp.xhw.mikke.services.identity.application.command.UpdateProfileCommand
+import jp.xhw.mikke.services.identity.application.exception.*
+import jp.xhw.mikke.services.identity.application.input.parseAvatarMediaIdOrNull
+import jp.xhw.mikke.services.identity.application.input.parseUserId
+import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
+import jp.xhw.mikke.services.identity.application.service.IdentityService
 
 class IdentityServiceRpc(
     private val identityService: IdentityService,

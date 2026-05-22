@@ -3,7 +3,7 @@ package jp.xhw.mikke.services.identity.infrastructure
 import jp.xhw.mikke.platform.time.toJavaInstant
 import jp.xhw.mikke.platform.time.toKotlinInstant
 import jp.xhw.mikke.platform.uuid.exposed.uuidBinary
-import jp.xhw.mikke.services.identity.application.RefreshSessionRepository
+import jp.xhw.mikke.services.identity.application.port.RefreshSessionRepository
 import jp.xhw.mikke.services.identity.model.RefreshSession
 import jp.xhw.mikke.services.identity.model.RefreshSessionId
 import jp.xhw.mikke.services.identity.model.UserId

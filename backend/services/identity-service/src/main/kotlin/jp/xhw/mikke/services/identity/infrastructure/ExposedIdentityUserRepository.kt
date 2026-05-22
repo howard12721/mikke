@@ -5,8 +5,9 @@ import jp.xhw.mikke.platform.time.toJavaInstant
 import jp.xhw.mikke.platform.time.toKotlinInstant
 import jp.xhw.mikke.platform.uuid.exposed.uuidBinary
 import jp.xhw.mikke.platform.uuid.exposed.uuidBinaryNullable
-import jp.xhw.mikke.services.identity.application.DuplicateIdentityUserException
-import jp.xhw.mikke.services.identity.application.IdentityUserRepository
+import jp.xhw.mikke.services.identity.application.exception.DuplicateIdentityUserException
+import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
+import jp.xhw.mikke.services.identity.application.port.IdentityUserRepository
 import jp.xhw.mikke.services.identity.model.*
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
@@ -99,7 +100,9 @@ class ExposedIdentityUserRepository : IdentityUserRepository {
             return emptyList()
         }
 
-        val prefixCondition = IdentityUsersTable.normalizedUsername like "$normalizedPrefix%"
+        val prefixCondition =
+            IdentityUsersTable.normalizedUsername like
+                (LikePattern.ofLiteral(normalizedPrefix) + "%")
         val activeCondition = IdentityUsersTable.status eq IdentityUserStatus.ACTIVE.toDatabaseValue()
 
         val cursorCondition =
