@@ -1,6 +1,7 @@
 package jp.xhw.mikke.services.identity
 
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import jp.xhw.mikke.identity.v1.*
 import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
 import jp.xhw.mikke.platform.grpc.ValidationException
@@ -15,6 +16,10 @@ import jp.xhw.mikke.services.identity.application.input.parseAvatarMediaIdOrNull
 import jp.xhw.mikke.services.identity.application.input.parseUserId
 import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
 import jp.xhw.mikke.services.identity.application.service.IdentityService
+import java.util.logging.Level
+import java.util.logging.Logger
+
+private val logger: Logger = Logger.getLogger(IdentityServiceRpc::class.java.name)
 
 class IdentityServiceRpc(
     private val identityService: IdentityService,
@@ -172,10 +177,18 @@ private fun String.requireField(fieldName: String): String =
 private inline fun <T> execute(block: () -> T): T =
     try {
         block()
+    } catch (e: StatusRuntimeException) {
+        throw e
     } catch (e: IdentityApplicationException) {
-        throw e.toStatus().asRuntimeException()
+        throw e.toStatus().withCause(e).asRuntimeException()
     } catch (e: ValidationException) {
-        throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
+        throw Status.INVALID_ARGUMENT.withDescription(e.message).withCause(e).asRuntimeException()
+    } catch (e: Exception) {
+        logger.log(Level.SEVERE, "Unhandled identity-service RPC exception", e)
+        throw Status.INTERNAL
+            .withDescription("Internal identity service error")
+            .withCause(e)
+            .asRuntimeException()
     }
 
 private fun IdentityApplicationException.toStatus(): Status =
