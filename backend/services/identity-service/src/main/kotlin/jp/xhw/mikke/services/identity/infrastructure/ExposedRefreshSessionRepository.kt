@@ -1,6 +1,9 @@
 package jp.xhw.mikke.services.identity.infrastructure
 
-import jp.xhw.mikke.services.identity.application.RefreshSessionRepository
+import jp.xhw.mikke.platform.time.toJavaInstant
+import jp.xhw.mikke.platform.time.toKotlinInstant
+import jp.xhw.mikke.platform.uuid.exposed.uuidBinary
+import jp.xhw.mikke.services.identity.application.port.RefreshSessionRepository
 import jp.xhw.mikke.services.identity.model.RefreshSession
 import jp.xhw.mikke.services.identity.model.RefreshSessionId
 import jp.xhw.mikke.services.identity.model.UserId
@@ -13,14 +16,12 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Instant
-import kotlin.uuid.Uuid
-import java.time.Instant as JavaInstant
 
 class ExposedRefreshSessionRepository : RefreshSessionRepository {
     override fun save(session: RefreshSession) {
         IdentityRefreshSessionsTable.insert { row ->
-            row[id] = session.id.value.toString()
-            row[userId] = session.userId.value.toString()
+            row[id] = session.id.value
+            row[userId] = session.userId.value
             row[refreshTokenHash] = session.refreshTokenHash
             row[expiresAt] = session.expiresAt.toJavaInstant()
             row[revokedAt] = session.revokedAt?.toJavaInstant()
@@ -42,7 +43,7 @@ class ExposedRefreshSessionRepository : RefreshSessionRepository {
     ): Boolean =
         IdentityRefreshSessionsTable.update(
             where = {
-                (IdentityRefreshSessionsTable.id eq sessionId.value.toString()) and
+                (IdentityRefreshSessionsTable.id eq sessionId.value) and
                     (IdentityRefreshSessionsTable.revokedAt eq null)
             },
         ) { row ->
@@ -61,11 +62,25 @@ class ExposedRefreshSessionRepository : RefreshSessionRepository {
         ) { row ->
             row[IdentityRefreshSessionsTable.revokedAt] = revokedAt.toJavaInstant()
         } > 0
+
+    override fun revokeAllForUser(
+        userId: UserId,
+        revokedAt: Instant,
+    ) {
+        IdentityRefreshSessionsTable.update(
+            where = {
+                (IdentityRefreshSessionsTable.userId eq userId.value) and
+                    (IdentityRefreshSessionsTable.revokedAt eq null)
+            },
+        ) { row ->
+            row[IdentityRefreshSessionsTable.revokedAt] = revokedAt.toJavaInstant()
+        }
+    }
 }
 
 private object IdentityRefreshSessionsTable : Table("identity_refresh_sessions") {
-    val id = varchar("id", length = 36)
-    val userId = varchar("user_id", length = 36)
+    val id = uuidBinary("id")
+    val userId = uuidBinary("user_id")
     val refreshTokenHash = varchar("refresh_token_hash", length = 64).uniqueIndex()
     val expiresAt = timestamp("expires_at")
     val revokedAt = timestamp("revoked_at").nullable()
@@ -76,14 +91,10 @@ private object IdentityRefreshSessionsTable : Table("identity_refresh_sessions")
 
 private fun ResultRow.toRefreshSession(): RefreshSession =
     RefreshSession(
-        id = RefreshSessionId(Uuid.parse(this[IdentityRefreshSessionsTable.id])),
-        userId = UserId(Uuid.parse(this[IdentityRefreshSessionsTable.userId])),
+        id = RefreshSessionId(this[IdentityRefreshSessionsTable.id]),
+        userId = UserId(this[IdentityRefreshSessionsTable.userId]),
         refreshTokenHash = this[IdentityRefreshSessionsTable.refreshTokenHash],
         expiresAt = this[IdentityRefreshSessionsTable.expiresAt].toKotlinInstant(),
         revokedAt = this[IdentityRefreshSessionsTable.revokedAt]?.toKotlinInstant(),
         createdAt = this[IdentityRefreshSessionsTable.createdAt].toKotlinInstant(),
     )
-
-private fun Instant.toJavaInstant(): JavaInstant = JavaInstant.ofEpochSecond(epochSeconds, nanosecondsOfSecond.toLong())
-
-private fun JavaInstant.toKotlinInstant(): Instant = Instant.fromEpochSeconds(epochSecond, nano)

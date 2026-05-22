@@ -1,6 +1,7 @@
 package jp.xhw.mikke.services.identity.model
 
 import kotlin.time.Instant
+import kotlin.uuid.Uuid
 
 data class IdentityUser(
     val id: UserId,
@@ -8,8 +9,18 @@ data class IdentityUser(
     val username: Username,
     val displayName: DisplayName,
     val passwordHash: PasswordHash,
+    val avatarMediaId: AvatarMediaId?,
+    val status: IdentityUserStatus,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val deactivatedAt: Instant?,
+) {
+    fun isPubliclyVisible(): Boolean = status == IdentityUserStatus.ACTIVE
+}
+
+@JvmInline
+value class AvatarMediaId(
+    val value: Uuid,
 )
 
 @JvmInline
