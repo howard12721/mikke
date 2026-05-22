@@ -1,5 +1,6 @@
-package jp.xhw.mikke.services.identity.application
+package jp.xhw.mikke.services.identity.application.port
 
+import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
 import jp.xhw.mikke.services.identity.model.*
 import kotlin.time.Instant
 
@@ -26,8 +27,3 @@ interface IdentityUserRepository {
         updatedAt: Instant,
     ): Boolean
 }
-
-class DuplicateIdentityUserException(
-    message: String = "identity user already exists",
-    cause: Throwable? = null,
-) : IdentityApplicationException(message, cause)

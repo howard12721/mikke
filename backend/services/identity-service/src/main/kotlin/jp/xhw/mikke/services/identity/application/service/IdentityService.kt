@@ -1,4 +1,4 @@
-package jp.xhw.mikke.services.identity.application
+package jp.xhw.mikke.services.identity.application.service
 
 import jp.xhw.mikke.platform.auth.AuthenticatedPrincipal
 import jp.xhw.mikke.platform.auth.IssuedAuthSession
@@ -8,8 +8,20 @@ import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
 import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.pagination.PageSlice
 import jp.xhw.mikke.platform.pagination.ValidatedPageRequest
-import jp.xhw.mikke.platform.uuid.parseGrpcUuid
-import jp.xhw.mikke.platform.uuid.parseGrpcUuidOrNull
+import jp.xhw.mikke.services.identity.application.command.AuthenticatedIdentityUser
+import jp.xhw.mikke.services.identity.application.command.LoginIdentityUserCommand
+import jp.xhw.mikke.services.identity.application.command.RegisterIdentityUserCommand
+import jp.xhw.mikke.services.identity.application.command.UpdateProfileCommand
+import jp.xhw.mikke.services.identity.application.exception.InvalidCredentialsException
+import jp.xhw.mikke.services.identity.application.exception.InvalidIdentityInputException
+import jp.xhw.mikke.services.identity.application.exception.InvalidRefreshTokenException
+import jp.xhw.mikke.services.identity.application.exception.UserNotFoundException
+import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
+import jp.xhw.mikke.services.identity.application.port.IdentityUserOutbox
+import jp.xhw.mikke.services.identity.application.port.IdentityUserRepository
+import jp.xhw.mikke.services.identity.application.port.RefreshSessionRepository
+import jp.xhw.mikke.services.identity.application.security.PasswordHasher
+import jp.xhw.mikke.services.identity.application.security.RefreshSessionTokenService
 import jp.xhw.mikke.services.identity.model.*
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -74,9 +86,20 @@ class IdentityService(
             throw InvalidCredentialsException()
         }
 
-        val session = transactionRunner.runInTransaction { issueAuthSession(user.id, clock.now()) }
+        return transactionRunner.runInTransaction {
+            val currentUser =
+                userRepository.findByIds(listOf(user.id)).firstOrNull()
+                    ?: throw InvalidCredentialsException()
 
-        return AuthenticatedIdentityUser(user = user, session = session)
+            if (!currentUser.canAuthenticate()) {
+                throw InvalidCredentialsException()
+            }
+
+            AuthenticatedIdentityUser(
+                user = currentUser,
+                session = issueAuthSession(currentUser.id, clock.now()),
+            )
+        }
     }
 
     fun refreshSession(refreshToken: String): IssuedAuthSession {
@@ -285,62 +308,8 @@ class IdentityService(
 
 private fun IdentityUser.canAuthenticate(): Boolean = status == IdentityUserStatus.ACTIVE
 
-data class RegisterIdentityUserCommand(
-    val email: String,
-    val username: String,
-    val displayName: String,
-    val password: String,
-)
-
-data class LoginIdentityUserCommand(
-    val loginId: String,
-    val password: String,
-)
-
-data class UpdateProfileCommand(
-    val username: String?,
-    val displayName: String?,
-    val avatarMediaId: AvatarMediaId?,
-)
-
-data class AuthenticatedIdentityUser(
-    val user: IdentityUser,
-    val session: IssuedAuthSession,
-)
-
-sealed class IdentityApplicationException(
-    message: String,
-    cause: Throwable? = null,
-) : RuntimeException(message, cause)
-
-class InvalidIdentityInputException(
-    message: String,
-    cause: Throwable? = null,
-) : IdentityApplicationException(message, cause)
-
-class InvalidCredentialsException(
-    message: String = "Invalid credentials",
-    cause: Throwable? = null,
-) : IdentityApplicationException(message, cause)
-
-class InvalidRefreshTokenException(
-    message: String = "Invalid refresh token",
-    cause: Throwable? = null,
-) : IdentityApplicationException(message, cause)
-
-class UserNotFoundException(
-    message: String = "User not found",
-    cause: Throwable? = null,
-) : IdentityApplicationException(message, cause)
-
 private fun String.normalizeEmail(): String = trim().lowercase()
 
 private fun String.normalizeUsername(): String = trim().lowercase()
 
 private fun String.toUserIdOrNull(): UserId? = runCatching { UserId(Uuid.parse(trim())) }.getOrNull()
-
-fun parseUserId(raw: String): UserId = UserId(parseGrpcUuid(raw, fieldName = "user_id"))
-
-fun parseAvatarMediaId(raw: String): AvatarMediaId = AvatarMediaId(parseGrpcUuid(raw, fieldName = "avatar_media_id"))
-
-fun parseAvatarMediaIdOrNull(raw: String?): AvatarMediaId? = parseGrpcUuidOrNull(raw, fieldName = "avatar_media_id")?.let(::AvatarMediaId)

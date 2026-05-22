@@ -8,12 +8,12 @@ import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
 import jp.xhw.mikke.platform.grpc.grpcServer
 import jp.xhw.mikke.platform.grpc.installGrpcHealth
 import jp.xhw.mikke.platform.grpc.startAndAwait
-import jp.xhw.mikke.services.identity.application.ExposedIdentityUserOutbox
-import jp.xhw.mikke.services.identity.application.IdentityService
-import jp.xhw.mikke.services.identity.application.PasswordHasher
-import jp.xhw.mikke.services.identity.application.RefreshSessionTokenService
+import jp.xhw.mikke.services.identity.application.security.PasswordHasher
+import jp.xhw.mikke.services.identity.application.security.RefreshSessionTokenService
+import jp.xhw.mikke.services.identity.application.service.IdentityService
 import jp.xhw.mikke.services.identity.infrastructure.ExposedIdentityUserRepository
 import jp.xhw.mikke.services.identity.infrastructure.ExposedRefreshSessionRepository
+import jp.xhw.mikke.services.identity.infrastructure.outbox.ExposedIdentityUserOutbox
 
 fun main() {
     val passwordHasher = PasswordHasher()
@@ -35,6 +35,7 @@ fun main() {
             refreshSessionTokenService = refreshSessionTokenService,
         )
     val identityService = IdentityServiceRpc(identityService = identityApplicationService)
+    startIdentityOutboxRelay(transactionRunner)
 
     grpcServer(serviceName = "identity-service", portEnv = "IDENTITY_SERVICE_PORT", defaultPort = 50051) {
         installGrpcHealth(serviceName = "identity-service")

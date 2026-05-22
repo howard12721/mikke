@@ -1,4 +1,4 @@
-package jp.xhw.mikke.services.identity.application
+package jp.xhw.mikke.services.identity.application.port
 
 import jp.xhw.mikke.services.identity.model.RefreshSession
 import jp.xhw.mikke.services.identity.model.RefreshSessionId
