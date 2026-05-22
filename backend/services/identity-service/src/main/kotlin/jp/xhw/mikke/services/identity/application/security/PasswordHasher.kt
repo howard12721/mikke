@@ -1,4 +1,4 @@
-package jp.xhw.mikke.services.identity.application
+package jp.xhw.mikke.services.identity.application.security
 
 import jp.xhw.mikke.services.identity.model.PasswordHash
 import java.security.SecureRandom

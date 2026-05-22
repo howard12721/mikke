@@ -8,17 +8,19 @@ import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
 import jp.xhw.mikke.platform.grpc.grpcServer
 import jp.xhw.mikke.platform.grpc.installGrpcHealth
 import jp.xhw.mikke.platform.grpc.startAndAwait
-import jp.xhw.mikke.services.identity.application.IdentityService
-import jp.xhw.mikke.services.identity.application.PasswordHasher
-import jp.xhw.mikke.services.identity.application.RefreshSessionTokenService
+import jp.xhw.mikke.services.identity.application.security.PasswordHasher
+import jp.xhw.mikke.services.identity.application.security.RefreshSessionTokenService
+import jp.xhw.mikke.services.identity.application.service.IdentityService
 import jp.xhw.mikke.services.identity.infrastructure.ExposedIdentityUserRepository
 import jp.xhw.mikke.services.identity.infrastructure.ExposedRefreshSessionRepository
+import jp.xhw.mikke.services.identity.infrastructure.outbox.ExposedIdentityUserOutbox
 
 fun main() {
     val passwordHasher = PasswordHasher()
     val database = connectMariaDbFromEnv(defaultDatabase = "identity_service")
     val userRepository = ExposedIdentityUserRepository()
     val refreshSessionRepository = ExposedRefreshSessionRepository()
+    val userOutbox = ExposedIdentityUserOutbox()
     val transactionRunner = ExposedTransactionRunner(database)
     val tokenService = JwtTokenService(secret = System.getenv("IDENTITY_JWT_SECRET") ?: "dev-identity-secret")
     val refreshSessionTokenService = RefreshSessionTokenService()
@@ -26,12 +28,14 @@ fun main() {
         IdentityService(
             userRepository = userRepository,
             refreshSessionRepository = refreshSessionRepository,
+            userOutbox = userOutbox,
             transactionRunner = transactionRunner,
             passwordHasher = passwordHasher,
             tokenService = tokenService,
             refreshSessionTokenService = refreshSessionTokenService,
         )
     val identityService = IdentityServiceRpc(identityService = identityApplicationService)
+    startIdentityOutboxRelay(transactionRunner)
 
     grpcServer(serviceName = "identity-service", portEnv = "IDENTITY_SERVICE_PORT", defaultPort = 50051) {
         installGrpcHealth(serviceName = "identity-service")
