@@ -13,7 +13,7 @@ import jp.xhw.mikke.platform.outbox.OutboxRelay
 import jp.xhw.mikke.platform.outbox.RedisOutboxPublisher
 import jp.xhw.mikke.platform.redis.RedisStreamProducer
 import jp.xhw.mikke.platform.redis.connectRedisFromEnv
-import jp.xhw.mikke.services.friendship.application.FriendshipService
+import jp.xhw.mikke.services.friendship.application.service.FriendshipService
 import jp.xhw.mikke.services.friendship.infrastructure.ExposedBlockRepository
 import jp.xhw.mikke.services.friendship.infrastructure.ExposedFriendRequestRepository
 import jp.xhw.mikke.services.friendship.infrastructure.ExposedFriendshipRepository

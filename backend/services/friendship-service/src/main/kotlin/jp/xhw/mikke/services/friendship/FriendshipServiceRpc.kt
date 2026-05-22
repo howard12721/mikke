@@ -7,7 +7,6 @@ import jp.xhw.mikke.platform.grpc.requireInternalCaller
 import jp.xhw.mikke.platform.pagination.PageRequestInput
 import jp.xhw.mikke.platform.pagination.validate
 import jp.xhw.mikke.platform.uuid.formatGrpcUuid
-import jp.xhw.mikke.services.friendship.application.*
 import jp.xhw.mikke.services.friendship.application.exception.BlockRelationNotFoundException
 import jp.xhw.mikke.services.friendship.application.exception.DuplicateFriendRequestException
 import jp.xhw.mikke.services.friendship.application.exception.FriendRequestNotFoundException
@@ -16,6 +15,7 @@ import jp.xhw.mikke.services.friendship.application.exception.FriendshipNotAllow
 import jp.xhw.mikke.services.friendship.application.exception.FriendshipNotFoundException
 import jp.xhw.mikke.services.friendship.application.exception.FriendshipStateException
 import jp.xhw.mikke.services.friendship.application.exception.InvalidFriendshipInputException
+import jp.xhw.mikke.services.friendship.application.service.FriendshipService
 import jp.xhw.mikke.services.friendship.model.UserId
 import jp.xhw.mikke.services.friendship.model.parseFriendRequestId
 import jp.xhw.mikke.services.friendship.model.parseUserId

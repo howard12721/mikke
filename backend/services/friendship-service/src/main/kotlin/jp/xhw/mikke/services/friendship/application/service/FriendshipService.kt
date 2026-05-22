@@ -1,4 +1,4 @@
-package jp.xhw.mikke.services.friendship.application
+package jp.xhw.mikke.services.friendship.application.service
 
 import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.pagination.CreatedAtIdCursor

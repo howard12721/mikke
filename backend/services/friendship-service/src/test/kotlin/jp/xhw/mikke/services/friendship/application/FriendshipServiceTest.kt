@@ -14,6 +14,7 @@ import jp.xhw.mikke.services.friendship.application.port.BlockRepository
 import jp.xhw.mikke.services.friendship.application.port.FriendRequestRepository
 import jp.xhw.mikke.services.friendship.application.port.FriendshipOutbox
 import jp.xhw.mikke.services.friendship.application.port.FriendshipRepository
+import jp.xhw.mikke.services.friendship.application.service.FriendshipService
 import jp.xhw.mikke.services.friendship.model.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
