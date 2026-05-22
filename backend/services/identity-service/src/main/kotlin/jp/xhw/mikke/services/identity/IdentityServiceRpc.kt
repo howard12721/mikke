@@ -1,6 +1,7 @@
 package jp.xhw.mikke.services.identity
 
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import jp.xhw.mikke.identity.v1.*
 import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
@@ -140,10 +141,9 @@ class IdentityServiceRpc(
     }
 
     override suspend fun updateProfile(request: UpdateProfileRequest): UpdateProfileResponse {
-        val userId = currentAuthenticatedUser()
-
         val user =
             execute {
+                val userId = currentAuthenticatedUser()
                 identityService.updateProfile(
                     subject = userId.toString(),
                     command =
@@ -162,9 +162,10 @@ class IdentityServiceRpc(
     }
 
     override suspend fun deactivateAccount(request: DeactivateAccountRequest): DeactivateAccountResponse {
-        val userId = currentAuthenticatedUser()
-
-        execute { identityService.deactivateAccount(userId.toString()) }
+        execute {
+            val userId = currentAuthenticatedUser()
+            identityService.deactivateAccount(userId.toString())
+        }
 
         return DeactivateAccountResponse.getDefaultInstance()
     }
@@ -178,6 +179,8 @@ private inline fun <T> execute(block: () -> T): T =
     try {
         block()
     } catch (e: StatusRuntimeException) {
+        throw e
+    } catch (e: StatusException) {
         throw e
     } catch (e: IdentityApplicationException) {
         throw e.toStatus().withCause(e).asRuntimeException()
