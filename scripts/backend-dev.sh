@@ -26,7 +26,7 @@ EOF
 
 is_valid_service() {
   case "$1" in
-    api|identity-service|friendship-service|post-service|media-service|guess-service|feed-service|notification-service)
+    api|identity-service|friendship-service|post-service|media-service|guess-service|notification-service)
       return 0
       ;;
     *)
@@ -42,7 +42,6 @@ flyway_service_for() {
     post-service) echo "flyway-post-service" ;;
     media-service) echo "flyway-media-service" ;;
     guess-service) echo "flyway-guess-service" ;;
-    feed-service) echo "flyway-feed-service" ;;
     notification-service) echo "flyway-notification-service" ;;
     *) return 1 ;;
   esac
@@ -84,7 +83,6 @@ run_all_migrations() {
     post-service \
     media-service \
     guess-service \
-    feed-service \
     notification-service
 }
 
