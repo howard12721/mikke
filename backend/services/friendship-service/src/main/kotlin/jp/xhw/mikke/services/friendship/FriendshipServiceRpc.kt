@@ -1,6 +1,8 @@
 package jp.xhw.mikke.services.friendship
 
 import io.grpc.Status
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import jp.xhw.mikke.friendship.v1.*
 import jp.xhw.mikke.platform.grpc.ValidationException
 import jp.xhw.mikke.platform.grpc.requireInternalCaller
@@ -19,18 +21,23 @@ import jp.xhw.mikke.services.friendship.application.service.FriendshipService
 import jp.xhw.mikke.services.friendship.model.UserId
 import jp.xhw.mikke.services.friendship.model.parseFriendRequestId
 import jp.xhw.mikke.services.friendship.model.parseUserId
+import java.util.logging.Level
+import java.util.logging.Logger
 import jp.xhw.mikke.platform.grpc.currentAuthenticatedUser as requireAuthenticatedUserUuid
 
+private val logger: Logger = Logger.getLogger(FriendshipServiceRpc::class.java.name)
 private val INTERNAL_VIEWER_CALLERS = setOf("post-service", "media-service", "api")
 
 class FriendshipServiceRpc(
     private val friendshipService: FriendshipService,
 ) : FriendshipServiceGrpcKt.FriendshipServiceCoroutineImplBase() {
     override suspend fun sendFriendRequest(request: SendFriendRequestRequest): SendFriendRequestResponse {
-        val senderUserId = currentAuthenticatedUser()
-        val receiverUserId = parseUserId(request.receiverUserId.requireField("receiver_user_id"))
-
-        val friendRequest = execute { friendshipService.sendFriendRequest(senderUserId, receiverUserId) }
+        val friendRequest =
+            execute {
+                val senderUserId = currentAuthenticatedUser()
+                val receiverUserId = parseUserId(request.receiverUserId.requireField("receiver_user_id"))
+                friendshipService.sendFriendRequest(senderUserId, receiverUserId)
+            }
 
         return SendFriendRequestResponse
             .newBuilder()
@@ -39,11 +46,10 @@ class FriendshipServiceRpc(
     }
 
     override suspend fun acceptFriendRequest(request: AcceptFriendRequestRequest): AcceptFriendRequestResponse {
-        val receiverUserId = currentAuthenticatedUser()
-        val friendRequestId = parseFriendRequestId(request.friendRequestId.requireField("friend_request_id"))
-
         val friendship =
             execute {
+                val receiverUserId = currentAuthenticatedUser()
+                val friendRequestId = parseFriendRequestId(request.friendRequestId.requireField("friend_request_id"))
                 friendshipService.acceptFriendRequest(receiverUserId, friendRequestId)
             }
 
@@ -54,11 +60,10 @@ class FriendshipServiceRpc(
     }
 
     override suspend fun rejectFriendRequest(request: RejectFriendRequestRequest): RejectFriendRequestResponse {
-        val receiverUserId = currentAuthenticatedUser()
-        val friendRequestId = parseFriendRequestId(request.friendRequestId.requireField("friend_request_id"))
-
         val friendRequest =
             execute {
+                val receiverUserId = currentAuthenticatedUser()
+                val friendRequestId = parseFriendRequestId(request.friendRequestId.requireField("friend_request_id"))
                 friendshipService.rejectFriendRequest(receiverUserId, friendRequestId)
             }
 
@@ -69,11 +74,10 @@ class FriendshipServiceRpc(
     }
 
     override suspend fun cancelFriendRequest(request: CancelFriendRequestRequest): CancelFriendRequestResponse {
-        val senderUserId = currentAuthenticatedUser()
-        val friendRequestId = parseFriendRequestId(request.friendRequestId.requireField("friend_request_id"))
-
         val friendRequest =
             execute {
+                val senderUserId = currentAuthenticatedUser()
+                val friendRequestId = parseFriendRequestId(request.friendRequestId.requireField("friend_request_id"))
                 friendshipService.cancelFriendRequest(senderUserId, friendRequestId)
             }
 
@@ -84,19 +88,22 @@ class FriendshipServiceRpc(
     }
 
     override suspend fun removeFriend(request: RemoveFriendRequest): RemoveFriendResponse {
-        val actorUserId = currentAuthenticatedUser()
-        val friendUserId = parseUserId(request.friendUserId.requireField("friend_user_id"))
-
-        execute { friendshipService.removeFriend(actorUserId, friendUserId) }
+        execute {
+            val actorUserId = currentAuthenticatedUser()
+            val friendUserId = parseUserId(request.friendUserId.requireField("friend_user_id"))
+            friendshipService.removeFriend(actorUserId, friendUserId)
+        }
 
         return RemoveFriendResponse.getDefaultInstance()
     }
 
     override suspend fun blockUser(request: BlockUserRequest): BlockUserResponse {
-        val blockerUserId = currentAuthenticatedUser()
-        val blockedUserId = parseUserId(request.blockedUserId.requireField("blocked_user_id"))
-
-        val blockRelation = execute { friendshipService.blockUser(blockerUserId, blockedUserId) }
+        val blockRelation =
+            execute {
+                val blockerUserId = currentAuthenticatedUser()
+                val blockedUserId = parseUserId(request.blockedUserId.requireField("blocked_user_id"))
+                friendshipService.blockUser(blockerUserId, blockedUserId)
+            }
 
         return BlockUserResponse
             .newBuilder()
@@ -105,19 +112,22 @@ class FriendshipServiceRpc(
     }
 
     override suspend fun unblockUser(request: UnblockUserRequest): UnblockUserResponse {
-        val blockerUserId = currentAuthenticatedUser()
-        val blockedUserId = parseUserId(request.blockedUserId.requireField("blocked_user_id"))
-
-        execute { friendshipService.unblockUser(blockerUserId, blockedUserId) }
+        execute {
+            val blockerUserId = currentAuthenticatedUser()
+            val blockedUserId = parseUserId(request.blockedUserId.requireField("blocked_user_id"))
+            friendshipService.unblockUser(blockerUserId, blockedUserId)
+        }
 
         return UnblockUserResponse.getDefaultInstance()
     }
 
     override suspend fun getFriendship(request: GetFriendshipRequest): GetFriendshipResponse {
-        val viewerUserId = currentAuthenticatedUser()
-        val targetUserId = parseUserId(request.targetUserId.requireField("target_user_id"))
-
-        val summary = execute { friendshipService.getFriendshipSummary(viewerUserId, targetUserId) }
+        val summary =
+            execute {
+                val viewerUserId = currentAuthenticatedUser()
+                val targetUserId = parseUserId(request.targetUserId.requireField("target_user_id"))
+                friendshipService.getFriendshipSummary(viewerUserId, targetUserId)
+            }
 
         return GetFriendshipResponse
             .newBuilder()
@@ -126,10 +136,12 @@ class FriendshipServiceRpc(
     }
 
     override suspend fun listFriends(request: ListFriendsRequest): ListFriendsResponse {
-        val page = execute { PageRequestInput(request.page.pageSize, request.page.pageToken).validate() }
-        val targetUserId = parseUserId(request.targetUserId.requireField("target_user_id"))
-
-        val result = execute { friendshipService.listFriends(targetUserId, page) }
+        val result =
+            execute {
+                val page = PageRequestInput(request.page.pageSize, request.page.pageToken).validate()
+                val targetUserId = parseUserId(request.targetUserId.requireField("target_user_id"))
+                friendshipService.listFriends(targetUserId, page)
+            }
 
         return ListFriendsResponse
             .newBuilder()
@@ -139,10 +151,12 @@ class FriendshipServiceRpc(
     }
 
     override suspend fun listIncomingFriendRequests(request: ListIncomingFriendRequestsRequest): ListIncomingFriendRequestsResponse {
-        val receiverUserId = currentAuthenticatedUser()
-        val page = execute { PageRequestInput(request.page.pageSize, request.page.pageToken).validate() }
-
-        val result = execute { friendshipService.listIncomingFriendRequests(receiverUserId, page) }
+        val result =
+            execute {
+                val receiverUserId = currentAuthenticatedUser()
+                val page = PageRequestInput(request.page.pageSize, request.page.pageToken).validate()
+                friendshipService.listIncomingFriendRequests(receiverUserId, page)
+            }
 
         return ListIncomingFriendRequestsResponse
             .newBuilder()
@@ -152,10 +166,12 @@ class FriendshipServiceRpc(
     }
 
     override suspend fun listOutgoingFriendRequests(request: ListOutgoingFriendRequestsRequest): ListOutgoingFriendRequestsResponse {
-        val senderUserId = currentAuthenticatedUser()
-        val page = execute { PageRequestInput(request.page.pageSize, request.page.pageToken).validate() }
-
-        val result = execute { friendshipService.listOutgoingFriendRequests(senderUserId, page) }
+        val result =
+            execute {
+                val senderUserId = currentAuthenticatedUser()
+                val page = PageRequestInput(request.page.pageSize, request.page.pageToken).validate()
+                friendshipService.listOutgoingFriendRequests(senderUserId, page)
+            }
 
         return ListOutgoingFriendRequestsResponse
             .newBuilder()
@@ -165,10 +181,12 @@ class FriendshipServiceRpc(
     }
 
     override suspend fun batchGetFriendshipSummaries(request: BatchGetFriendshipSummariesRequest): BatchGetFriendshipSummariesResponse {
-        val viewerUserId = currentAuthenticatedUser()
-        val targetUserIds = request.targetUserIdsList.map { parseUserId(it.requireField("target_user_id")) }
-
-        val summaries = execute { friendshipService.batchGetFriendshipSummaries(viewerUserId, targetUserIds) }
+        val summaries =
+            execute {
+                val viewerUserId = currentAuthenticatedUser()
+                val targetUserIds = request.targetUserIdsList.map { parseUserId(it.requireField("target_user_id")) }
+                friendshipService.batchGetFriendshipSummaries(viewerUserId, targetUserIds)
+            }
 
         return BatchGetFriendshipSummariesResponse
             .newBuilder()
@@ -177,10 +195,12 @@ class FriendshipServiceRpc(
     }
 
     override suspend fun checkCanViewUserPosts(request: CheckCanViewUserPostsRequest): CheckCanViewUserPostsResponse {
-        val viewerUserId = currentAuthenticatedUser()
-        val ownerUserId = parseUserId(request.ownerUserId.requireField("owner_user_id"))
-
-        val visibility = execute { friendshipService.checkCanViewUserPosts(viewerUserId, ownerUserId) }
+        val visibility =
+            execute {
+                val viewerUserId = currentAuthenticatedUser()
+                val ownerUserId = parseUserId(request.ownerUserId.requireField("owner_user_id"))
+                friendshipService.checkCanViewUserPosts(viewerUserId, ownerUserId)
+            }
 
         return CheckCanViewUserPostsResponse
             .newBuilder()
@@ -192,12 +212,13 @@ class FriendshipServiceRpc(
     override suspend fun checkCanViewUserPostsForViewer(
         request: CheckCanViewUserPostsForViewerRequest,
     ): CheckCanViewUserPostsForViewerResponse {
-        requireInternalCaller(INTERNAL_VIEWER_CALLERS)
-
-        val viewerUserId = parseUserId(request.viewerUserId.requireField("viewer_user_id"))
-        val ownerUserId = parseUserId(request.ownerUserId.requireField("owner_user_id"))
-
-        val visibility = execute { friendshipService.checkCanViewUserPosts(viewerUserId, ownerUserId) }
+        val visibility =
+            execute {
+                requireInternalCaller(INTERNAL_VIEWER_CALLERS)
+                val viewerUserId = parseUserId(request.viewerUserId.requireField("viewer_user_id"))
+                val ownerUserId = parseUserId(request.ownerUserId.requireField("owner_user_id"))
+                friendshipService.checkCanViewUserPosts(viewerUserId, ownerUserId)
+            }
 
         return CheckCanViewUserPostsForViewerResponse
             .newBuilder()
@@ -216,10 +237,20 @@ private fun String.requireField(fieldName: String): String =
 private inline fun <T> execute(block: () -> T): T =
     try {
         block()
+    } catch (e: StatusRuntimeException) {
+        throw e
+    } catch (e: StatusException) {
+        throw e
     } catch (e: FriendshipApplicationException) {
-        throw e.toStatus().asRuntimeException()
+        throw e.toStatus().withCause(e).asRuntimeException()
     } catch (e: ValidationException) {
-        throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
+        throw Status.INVALID_ARGUMENT.withDescription(e.message).withCause(e).asRuntimeException()
+    } catch (e: Exception) {
+        logger.log(Level.SEVERE, "Unhandled friendship-service RPC exception", e)
+        throw Status.INTERNAL
+            .withDescription("Internal friendship service error")
+            .withCause(e)
+            .asRuntimeException()
     }
 
 private fun FriendshipApplicationException.toStatus(): Status =
