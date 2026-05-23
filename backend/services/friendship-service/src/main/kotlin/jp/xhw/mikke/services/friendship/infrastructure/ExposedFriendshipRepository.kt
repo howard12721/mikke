@@ -110,8 +110,10 @@ class ExposedFriendshipRepository : FriendshipRepository {
         return FriendshipsTable
             .selectAll()
             .where { whereClause }
-            .orderBy(FriendshipsTable.createdAt to SortOrder.DESC)
-            .orderBy(FriendshipsTable.id to SortOrder.DESC)
+            .orderBy(
+                FriendshipsTable.createdAt to SortOrder.DESC,
+                FriendshipsTable.id to SortOrder.DESC,
+            )
             .limit(limit)
             .map { it.toFriendship() }
     }
