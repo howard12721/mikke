@@ -40,9 +40,10 @@ class ExposedFriendshipOutbox(
         request: FriendRequest,
         friendship: Friendship,
     ) {
-        val respondedAt = requireNotNull(request.respondedAt) {
-            "accepted friend request must have respondedAt"
-        }
+        val respondedAt =
+            requireNotNull(request.respondedAt) {
+                "accepted friend request must have respondedAt"
+            }
 
         insert(
             eventType = FriendshipEventTypes.ACCEPTED,
@@ -62,9 +63,10 @@ class ExposedFriendshipOutbox(
     }
 
     override fun appendFriendRequestRejected(request: FriendRequest) {
-        val respondedAt = requireNotNull(request.respondedAt) {
-            "rejected friend request must have respondedAt"
-        }
+        val respondedAt =
+            requireNotNull(request.respondedAt) {
+                "rejected friend request must have respondedAt"
+            }
 
         insert(
             eventType = FriendshipEventTypes.REJECTED,

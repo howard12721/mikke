@@ -1,17 +1,13 @@
 package jp.xhw.mikke.services.friendship
 
 import jp.xhw.mikke.friendship.v1.FriendshipServiceGrpc
-import jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
 import jp.xhw.mikke.platform.auth.grpc.GrpcAuthServerInterceptor
+import jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
 import jp.xhw.mikke.platform.auth.grpc.bearerToken
 import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
 import jp.xhw.mikke.platform.database.connectMariaDbFromEnv
 import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
-import jp.xhw.mikke.platform.grpc.GrpcServerExceptionHandling
-import jp.xhw.mikke.platform.grpc.InternalRpcServerInterceptor
-import jp.xhw.mikke.platform.grpc.grpcServer
-import jp.xhw.mikke.platform.grpc.installGrpcHealth
-import jp.xhw.mikke.platform.grpc.startAndAwait
+import jp.xhw.mikke.platform.grpc.*
 import jp.xhw.mikke.platform.outbox.OutboxRelay
 import jp.xhw.mikke.platform.outbox.RedisOutboxPublisher
 import jp.xhw.mikke.platform.redis.RedisStreamProducer

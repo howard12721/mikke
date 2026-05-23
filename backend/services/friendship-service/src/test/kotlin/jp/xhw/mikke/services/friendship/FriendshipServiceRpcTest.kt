@@ -561,7 +561,7 @@ private class ThrowingFriendRequestRepository : RecordingFriendRequestRepository
     override fun findPendingBetween(
         firstUserId: UserId,
         secondUserId: UserId,
-    ): FriendRequest? = throw IllegalStateException("database failed")
+    ): FriendRequest = throw IllegalStateException("database failed")
 }
 
 private open class RecordingFriendshipRepository : FriendshipRepository {
@@ -612,9 +612,7 @@ private open class RecordingFriendshipRepository : FriendshipRepository {
 }
 
 private class DuplicatePairOnSaveFriendshipRepository : RecordingFriendshipRepository() {
-    override fun save(friendship: Friendship) {
-        throw FriendshipStateException("Friendship already exists")
-    }
+    override fun save(friendship: Friendship): Unit = throw FriendshipStateException("Friendship already exists")
 }
 
 private class RecordingBlockRepository : BlockRepository {
