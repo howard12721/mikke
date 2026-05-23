@@ -1,13 +1,6 @@
 package jp.xhw.mikke.platform.grpc
 
-import io.grpc.ForwardingServerCallListener
-import io.grpc.Metadata
-import io.grpc.ServerCall
-import io.grpc.ServerCallHandler
-import io.grpc.ServerInterceptor
-import io.grpc.Status
-import io.grpc.StatusException
-import io.grpc.StatusRuntimeException
+import io.grpc.*
 import java.util.logging.Level
 import java.util.logging.Logger
 
@@ -120,14 +113,25 @@ fun Throwable.toGrpcStatusRuntimeException(
     throwIfCancellation()
 
     return when (this) {
-        is StatusRuntimeException -> this
-        is StatusException -> status.withCause(this).asRuntimeException(trailers)
-        is ValidationException ->
+        is StatusRuntimeException -> {
+            this
+        }
+
+        is StatusException -> {
+            status.withCause(this).asRuntimeException(trailers)
+        }
+
+        is ValidationException -> {
             Status.INVALID_ARGUMENT
                 .withDescription(message)
                 .withCause(this)
                 .asRuntimeException()
-        is MikkeException -> toStatus().withCause(this).asRuntimeException()
+        }
+
+        is MikkeException -> {
+            toStatus().withCause(this).asRuntimeException()
+        }
+
         else -> {
             val domainStatus = domainExceptionMapper.toStatus(this)
             if (domainStatus != null) {
@@ -146,8 +150,7 @@ fun Throwable.toGrpcStatusRuntimeException(
 @PublishedApi
 internal fun Throwable.throwIfCancellation() {
     if (
-        this is kotlinx.coroutines.CancellationException ||
-            this is java.util.concurrent.CancellationException
+        this is kotlinx.coroutines.CancellationException
     ) {
         throw this
     }
