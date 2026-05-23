@@ -145,7 +145,10 @@ fun Throwable.toGrpcStatusRuntimeException(
 
 @PublishedApi
 internal fun Throwable.throwIfCancellation() {
-    if (this is kotlinx.coroutines.CancellationException) {
+    if (
+        this is kotlinx.coroutines.CancellationException ||
+            this is java.util.concurrent.CancellationException
+    ) {
         throw this
     }
 }
