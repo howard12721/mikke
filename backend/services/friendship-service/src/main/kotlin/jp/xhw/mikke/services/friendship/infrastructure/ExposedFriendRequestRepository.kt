@@ -146,8 +146,10 @@ class ExposedFriendRequestRepository : FriendRequestRepository {
         return FriendshipRequestsTable
             .selectAll()
             .where { whereClause }
-            .orderBy(FriendshipRequestsTable.createdAt to SortOrder.DESC)
-            .orderBy(FriendshipRequestsTable.id to SortOrder.DESC)
+            .orderBy(
+                FriendshipRequestsTable.createdAt to SortOrder.DESC,
+                FriendshipRequestsTable.id to SortOrder.DESC,
+            )
             .limit(limit)
             .map { it.toFriendRequest() }
     }
