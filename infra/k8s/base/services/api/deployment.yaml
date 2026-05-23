@@ -67,6 +67,11 @@ spec:
           value: '50057'
         - name: NOTIFICATION_SERVICE_TARGET
           value: dns:///notification-service:50057
+        - name: MIKKE_INTERNAL_RPC_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: internal-rpc-auth
+              key: token
         readinessProbe:
           httpGet:
             path: /health

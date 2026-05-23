@@ -10,6 +10,10 @@ import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
+fun interface OutboxPublisher {
+    fun publishBatch(): OutboxPublishBatchResult
+}
+
 class RedisOutboxPublisher(
     private val outboxTable: OutboxTable,
     private val transactionRunner: TransactionRunner,
@@ -18,7 +22,7 @@ class RedisOutboxPublisher(
     private val publisherId: String,
     private val batchSize: Int = 100,
     private val leaseDuration: Duration = 30.seconds,
-) {
+) : OutboxPublisher {
     init {
         require(producerName.isNotBlank()) { "producerName must not be blank" }
         require(publisherId.isNotBlank()) { "publisherId must not be blank" }
@@ -26,7 +30,7 @@ class RedisOutboxPublisher(
         require(leaseDuration.isPositive()) { "leaseDuration must be positive" }
     }
 
-    fun publishBatch(): OutboxPublishBatchResult {
+    override fun publishBatch(): OutboxPublishBatchResult {
         val now = Clock.System.now()
         val claimed =
             transactionRunner.runInTransaction {

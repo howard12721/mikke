@@ -2,7 +2,6 @@ package jp.xhw.mikke.services.identity.infrastructure.outbox
 
 import jp.xhw.mikke.events.user.UserEventTypes
 import jp.xhw.mikke.platform.outbox.OutboxEntry
-import jp.xhw.mikke.platform.outbox.exposed.OutboxTable
 import jp.xhw.mikke.platform.outbox.exposed.insertEntry
 import jp.xhw.mikke.platform.uuid.formatGrpcUuid
 import jp.xhw.mikke.services.identity.application.port.IdentityUserOutbox
@@ -91,8 +90,6 @@ class ExposedIdentityUserOutbox(
         val json = Json { encodeDefaults = false }
     }
 }
-
-object IdentityOutboxTable : OutboxTable("identity_outbox")
 
 @Serializable
 private data class UserCreatedPayload(
