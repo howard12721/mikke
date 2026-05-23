@@ -34,9 +34,20 @@ class ExposedFriendshipOutboxTest {
         }
     }
 
+    @Test
+    fun `append canceled request requires canceledAt`() {
+        val outbox = ExposedFriendshipOutbox()
+        val request = friendRequest(status = FriendRequestStatus.CANCELED, canceledAt = null)
+
+        assertThrows(IllegalArgumentException::class.java) {
+            outbox.appendFriendRequestCanceled(request)
+        }
+    }
+
     private fun friendRequest(
         status: FriendRequestStatus,
-        respondedAt: Instant?,
+        respondedAt: Instant? = null,
+        canceledAt: Instant? = null,
     ): FriendRequest =
         FriendRequest(
             id = FriendRequestId(Uuid.random()),
@@ -45,7 +56,7 @@ class ExposedFriendshipOutboxTest {
             status = status,
             createdAt = Instant.parse("2026-05-18T00:00:00Z"),
             respondedAt = respondedAt,
-            canceledAt = null,
+            canceledAt = canceledAt,
         )
 
     private fun friendship(

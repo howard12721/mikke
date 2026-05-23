@@ -85,6 +85,11 @@ class ExposedFriendshipOutbox(
     }
 
     override fun appendFriendRequestCanceled(request: FriendRequest) {
+        val canceledAt =
+            requireNotNull(request.canceledAt) {
+                "canceled friend request must have canceledAt"
+            }
+
         insert(
             eventType = FriendshipEventTypes.CANCELED,
             aggregateType = AGGREGATE_TYPE_FRIEND_REQUEST,
@@ -95,7 +100,7 @@ class ExposedFriendshipOutbox(
                         friendRequestId = formatGrpcUuid(request.id.value),
                         senderUserId = formatGrpcUuid(request.senderUserId.value),
                         receiverUserId = formatGrpcUuid(request.receiverUserId.value),
-                        canceledAt = request.canceledAt.toString(),
+                        canceledAt = canceledAt.toString(),
                     ),
                 ),
         )
