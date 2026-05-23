@@ -88,6 +88,7 @@ services:
       NOTIFICATION_SERVICE_HOST: notification-service
       NOTIFICATION_SERVICE_PORT: "50057"
       NOTIFICATION_SERVICE_TARGET: dns:///notification-service:50057
+      MIKKE_INTERNAL_RPC_TOKEN: mikke-dev-internal-rpc-token
     ports:
       - "8080:8080"
     depends_on:
@@ -144,6 +145,7 @@ services:
       MARIADB_PASSWORD: mikke
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      MIKKE_INTERNAL_RPC_TOKEN: mikke-dev-internal-rpc-token
     ports:
       - "50052:50052"
     depends_on:
@@ -166,6 +168,7 @@ services:
       MARIADB_PASSWORD: mikke
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      MIKKE_INTERNAL_RPC_TOKEN: mikke-dev-internal-rpc-token
     ports:
       - "50053:50053"
     depends_on:
@@ -195,6 +198,7 @@ services:
       OBJECT_STORAGE_ACCESS_KEY_ID: mikke-dev-garage-access-key
       OBJECT_STORAGE_SECRET_ACCESS_KEY: mikke-dev-garage-secret-key
       OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
+      MIKKE_INTERNAL_RPC_TOKEN: mikke-dev-internal-rpc-token
     ports:
       - "50054:50054"
     depends_on:
