@@ -1,19 +1,7 @@
 package jp.xhw.mikke.platform.grpc
 
-import io.grpc.CallOptions
-import io.grpc.Channel
-import io.grpc.ClientCall
-import io.grpc.ClientInterceptor
-import io.grpc.Context
-import io.grpc.Contexts
-import io.grpc.ForwardingClientCall
-import io.grpc.Metadata
-import io.grpc.MethodDescriptor
-import io.grpc.ServerCall
-import io.grpc.ServerCallHandler
-import io.grpc.ServerInterceptor
-import io.grpc.Status
-import io.grpc.StatusException
+import io.grpc.*
+import jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
 import java.security.MessageDigest
 
 object MikkeGrpcMetadata {
@@ -86,14 +74,25 @@ fun requireInternalCaller(allowedServices: Set<String>): InternalCallerContext {
     throw StatusException(Status.UNAUTHENTICATED.withDescription("Internal caller context is not available"))
 }
 
-class InternalRpcServerInterceptor : ServerInterceptor {
+class InternalRpcServerInterceptor(
+    private val methodAuthPolicies: Map<String, GrpcEndpointAuthPolicy> = emptyMap(),
+) : ServerInterceptor {
     override fun <ReqT, RespT> interceptCall(
         call: ServerCall<ReqT, RespT>,
         headers: Metadata,
         next: ServerCallHandler<ReqT, RespT>,
     ): ServerCall.Listener<ReqT> {
+        val requiresInternalCaller =
+            call.methodDescriptor
+                ?.fullMethodName
+                ?.let { methodAuthPolicies[it] == GrpcEndpointAuthPolicy.InternalRequired }
+                ?: false
         val token = headers.get(MikkeGrpcMetadata.internalTokenKey)?.trim()
         if (token.isNullOrEmpty()) {
+            if (requiresInternalCaller) {
+                call.close(Status.UNAUTHENTICATED.withDescription("Internal token is required"), Metadata())
+                return object : ServerCall.Listener<ReqT>() {}
+            }
             return next.startCall(call, headers)
         }
 
@@ -144,7 +143,8 @@ class InternalCallerClientInterceptor(
                 ?.takeIf { it.isNotEmpty() }
                 ?: error("$INTERNAL_RPC_TOKEN_ENV is not configured")
 
-        return object : ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(next.newCall(method, callOptions)) {
+        return object :
+            ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(next.newCall(method, callOptions)) {
             override fun start(
                 responseListener: Listener<RespT>,
                 headers: Metadata,

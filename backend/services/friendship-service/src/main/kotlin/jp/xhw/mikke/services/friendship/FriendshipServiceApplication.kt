@@ -1,5 +1,7 @@
 package jp.xhw.mikke.services.friendship
 
+import jp.xhw.mikke.friendship.v1.FriendshipServiceGrpc
+import jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
 import jp.xhw.mikke.platform.auth.grpc.GrpcAuthServerInterceptor
 import jp.xhw.mikke.platform.auth.grpc.bearerToken
 import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
@@ -54,11 +56,16 @@ fun main() {
                             streamName = System.getenv("DOMAIN_EVENTS_STREAM") ?: "mikke.events",
                         ),
                     producerName = "friendship-service",
-                    publisherId = System.getenv("OUTBOX_PUBLISHER_ID") ?: "friendship-service-${ProcessHandle.current().pid()}",
+                    publisherId =
+                        System.getenv("OUTBOX_PUBLISHER_ID") ?: "friendship-service-${
+                            ProcessHandle.current().pid()
+                        }",
                     batchSize = System.getenv("OUTBOX_RELAY_BATCH_SIZE")?.toIntOrNull() ?: 100,
                     leaseDuration = System.getenv("OUTBOX_RELAY_LEASE_SECONDS")?.toLongOrNull()?.seconds ?: 30.seconds,
                 ),
-            idleDelay = System.getenv("OUTBOX_RELAY_IDLE_DELAY_MILLIS")?.toLongOrNull()?.milliseconds ?: 500.milliseconds,
+            idleDelay =
+                System.getenv("OUTBOX_RELAY_IDLE_DELAY_MILLIS")?.toLongOrNull()?.milliseconds
+                    ?: 500.milliseconds,
             errorDelay = System.getenv("OUTBOX_RELAY_ERROR_DELAY_MILLIS")?.toLongOrNull()?.milliseconds ?: 5.seconds,
         )
     outboxRelay.start()
@@ -84,13 +91,19 @@ fun main() {
             ),
     ) {
         installGrpcHealth(serviceName = "friendship-service")
-        intercept(InternalRpcServerInterceptor())
+        val methodAuthPolicies =
+            mapOf(
+                FriendshipServiceGrpc.getCheckCanViewUserPostsForViewerMethod().fullMethodName to
+                    GrpcEndpointAuthPolicy.InternalRequired,
+            )
+        intercept(InternalRpcServerInterceptor(methodAuthPolicies = methodAuthPolicies))
         intercept(
             GrpcAuthServerInterceptor(
                 authenticator = { headers ->
                     headers.bearerToken()?.let(tokenService::authenticateAccessToken)
                 },
                 optional = false,
+                methodAuthPolicies = methodAuthPolicies,
             ),
         )
         addService(friendshipService)
