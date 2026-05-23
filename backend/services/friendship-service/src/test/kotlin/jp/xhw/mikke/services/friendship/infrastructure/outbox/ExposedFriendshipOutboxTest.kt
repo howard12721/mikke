@@ -44,6 +44,16 @@ class ExposedFriendshipOutboxTest {
         }
     }
 
+    @Test
+    fun `append removed friendship requires removedAt`() {
+        val outbox = ExposedFriendshipOutbox()
+        val friendship = friendship(UserId(Uuid.random()), UserId(Uuid.random()))
+
+        assertThrows(IllegalArgumentException::class.java) {
+            outbox.appendFriendshipRemoved(friendship)
+        }
+    }
+
     private fun friendRequest(
         status: FriendRequestStatus,
         respondedAt: Instant? = null,

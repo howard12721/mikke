@@ -107,6 +107,11 @@ class ExposedFriendshipOutbox(
     }
 
     override fun appendFriendshipRemoved(friendship: Friendship) {
+        val removedAt =
+            requireNotNull(friendship.removedAt) {
+                "removed friendship must have removedAt"
+            }
+
         insert(
             eventType = FriendshipEventTypes.REMOVED,
             aggregateType = AGGREGATE_TYPE_FRIENDSHIP,
@@ -117,7 +122,7 @@ class ExposedFriendshipOutbox(
                         friendshipId = formatGrpcUuid(friendship.id.value),
                         userLowId = formatGrpcUuid(friendship.userLowId.value),
                         userHighId = formatGrpcUuid(friendship.userHighId.value),
-                        removedAt = friendship.removedAt.toString(),
+                        removedAt = removedAt.toString(),
                     ),
                 ),
         )
