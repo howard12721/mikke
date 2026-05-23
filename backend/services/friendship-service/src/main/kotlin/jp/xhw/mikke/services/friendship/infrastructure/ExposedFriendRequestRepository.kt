@@ -149,8 +149,7 @@ class ExposedFriendRequestRepository : FriendRequestRepository {
             .orderBy(
                 FriendshipRequestsTable.createdAt to SortOrder.DESC,
                 FriendshipRequestsTable.id to SortOrder.DESC,
-            )
-            .limit(limit)
+            ).limit(limit)
             .map { it.toFriendRequest() }
     }
 }

@@ -113,8 +113,7 @@ class ExposedFriendshipRepository : FriendshipRepository {
             .orderBy(
                 FriendshipsTable.createdAt to SortOrder.DESC,
                 FriendshipsTable.id to SortOrder.DESC,
-            )
-            .limit(limit)
+            ).limit(limit)
             .map { it.toFriendship() }
     }
 }
