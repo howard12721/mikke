@@ -38,7 +38,8 @@ class GrpcExceptionHandlingServerInterceptor(
     ): ServerCall.Listener<ReqT> =
         try {
             next.startCall(call, headers).withGrpcExceptionHandling()
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
+            e.throwIfCancellation()
             throw e.toGrpcStatusRuntimeException(
                 logger = logger,
                 serviceName = serviceName,
@@ -78,7 +79,8 @@ class GrpcExceptionHandlingServerInterceptor(
     private inline fun handleGrpcListenerException(block: () -> Unit) {
         try {
             block()
-        } catch (e: Throwable) {
+        } catch (e: Exception) {
+            e.throwIfCancellation()
             throw e.toGrpcStatusRuntimeException(
                 logger = logger,
                 serviceName = serviceName,
@@ -89,13 +91,35 @@ class GrpcExceptionHandlingServerInterceptor(
     }
 }
 
+suspend inline fun <T> withGrpcExceptionMapping(
+    logger: Logger,
+    serviceName: String,
+    internalErrorDescription: String = "Internal $serviceName error",
+    domainExceptionMapper: GrpcDomainExceptionMapper = GrpcDomainExceptionMapper { null },
+    block: suspend () -> T,
+): T =
+    try {
+        block()
+    } catch (throwable: Exception) {
+        throwable.throwIfCancellation()
+        throw throwable.toGrpcStatusRuntimeException(
+            logger = logger,
+            serviceName = serviceName,
+            internalErrorDescription = internalErrorDescription,
+            domainExceptionMapper = domainExceptionMapper,
+        )
+    }
+
 fun Throwable.toGrpcStatusRuntimeException(
     logger: Logger,
     serviceName: String,
     internalErrorDescription: String = "Internal $serviceName error",
     domainExceptionMapper: GrpcDomainExceptionMapper = GrpcDomainExceptionMapper { null },
-): StatusRuntimeException =
-    when (this) {
+): StatusRuntimeException {
+    throwIfFatal()
+    throwIfCancellation()
+
+    return when (this) {
         is StatusRuntimeException -> this
         is StatusException -> status.withCause(this).asRuntimeException(trailers)
         is ValidationException ->
@@ -117,3 +141,17 @@ fun Throwable.toGrpcStatusRuntimeException(
             }
         }
     }
+}
+
+@PublishedApi
+internal fun Throwable.throwIfCancellation() {
+    if (this is kotlinx.coroutines.CancellationException) {
+        throw this
+    }
+}
+
+internal fun Throwable.throwIfFatal() {
+    if (this is Error) {
+        throw this
+    }
+}

@@ -5,9 +5,13 @@ import io.grpc.MethodDescriptor
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
 import io.grpc.Status
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 import java.util.logging.Logger
+import java.util.concurrent.CancellationException as FutureCancellationException
+import kotlinx.coroutines.CancellationException as CoroutineCancellationException
 
 class GrpcExceptionMapperTest {
     @Test
@@ -59,6 +63,145 @@ class GrpcExceptionMapperTest {
         val status = Status.fromThrowable(thrown)
         assertEquals(Status.Code.INTERNAL, status.code)
         assertEquals("Internal test-service error", status.description)
+    }
+
+    @Test
+    fun `exception handling interceptor rethrows fatal error`() {
+        val fatal = StackOverflowError("fatal")
+        val listener = listenerThrowing(fatal)
+
+        val thrown =
+            org.junit.jupiter.api.assertThrows<StackOverflowError> {
+                listener.onHalfClose()
+            }
+
+        assertSame(fatal, thrown)
+    }
+
+    @Test
+    fun `coroutine exception mapping maps domain exception`() =
+        runBlocking {
+            val thrown =
+                org.junit.jupiter.api.assertThrows<Throwable> {
+                    withGrpcExceptionMapping(
+                        logger = testLogger,
+                        serviceName = "test-service",
+                        domainExceptionMapper =
+                            GrpcDomainExceptionMapper { candidate ->
+                                (candidate as? TestDomainException)?.let {
+                                    Status.NOT_FOUND.withDescription(it.message)
+                                }
+                            },
+                    ) {
+                        throw TestDomainException("missing")
+                    }
+                }
+
+            val status = Status.fromThrowable(thrown)
+            assertEquals(Status.Code.NOT_FOUND, status.code)
+            assertEquals("missing", status.description)
+        }
+
+    @Test
+    fun `coroutine exception mapping rethrows cancellation`() {
+        val cancellation = CoroutineCancellationException("cancelled")
+
+        val thrown =
+            org.junit.jupiter.api.assertThrows<CoroutineCancellationException> {
+                runBlocking {
+                    withGrpcExceptionMapping(
+                        logger = testLogger,
+                        serviceName = "test-service",
+                    ) {
+                        throw cancellation
+                    }
+                }
+            }
+
+        assertSame(cancellation, thrown)
+    }
+
+    @Test
+    fun `coroutine exception mapping rethrows future cancellation`() {
+        val cancellation = FutureCancellationException("cancelled")
+
+        val thrown =
+            org.junit.jupiter.api.assertThrows<FutureCancellationException> {
+                runBlocking {
+                    withGrpcExceptionMapping(
+                        logger = testLogger,
+                        serviceName = "test-service",
+                    ) {
+                        throw cancellation
+                    }
+                }
+            }
+
+        assertSame(cancellation, thrown)
+    }
+
+    @Test
+    fun `coroutine exception mapping rethrows fatal error`() {
+        val fatal = StackOverflowError("fatal")
+
+        val thrown =
+            org.junit.jupiter.api.assertThrows<StackOverflowError> {
+                runBlocking {
+                    withGrpcExceptionMapping(
+                        logger = testLogger,
+                        serviceName = "test-service",
+                    ) {
+                        throw fatal
+                    }
+                }
+            }
+
+        assertSame(fatal, thrown)
+    }
+
+    @Test
+    fun `grpc status mapper rethrows cancellation`() {
+        val cancellation = CoroutineCancellationException("cancelled")
+
+        val thrown =
+            org.junit.jupiter.api.assertThrows<CoroutineCancellationException> {
+                cancellation.toGrpcStatusRuntimeException(
+                    logger = testLogger,
+                    serviceName = "test-service",
+                )
+            }
+
+        assertSame(cancellation, thrown)
+    }
+
+    @Test
+    fun `grpc status mapper rethrows future cancellation`() {
+        val cancellation = FutureCancellationException("cancelled")
+
+        val thrown =
+            org.junit.jupiter.api.assertThrows<FutureCancellationException> {
+                cancellation.toGrpcStatusRuntimeException(
+                    logger = testLogger,
+                    serviceName = "test-service",
+                )
+            }
+
+        assertSame(cancellation, thrown)
+    }
+
+    @Test
+    fun `grpc status mapper rethrows fatal error`() {
+        val fatal = StackOverflowError("fatal")
+
+        val thrown =
+            org.junit.jupiter.api.assertThrows<StackOverflowError> {
+                fatal.toGrpcStatusRuntimeException(
+                    logger = testLogger,
+                    serviceName = "test-service",
+                )
+            }
+
+        assertSame(fatal, thrown)
     }
 
     private fun listenerThrowing(throwable: Throwable): ServerCall.Listener<String> {

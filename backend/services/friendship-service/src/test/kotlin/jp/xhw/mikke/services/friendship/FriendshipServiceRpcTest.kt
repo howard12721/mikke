@@ -1,11 +1,18 @@
 package jp.xhw.mikke.services.friendship
 
+import io.grpc.ManagedChannelBuilder
+import io.grpc.Metadata
+import io.grpc.ServerBuilder
 import io.grpc.Status
+import io.grpc.stub.MetadataUtils
 import jp.xhw.mikke.common.v1.PageRequest
 import jp.xhw.mikke.friendship.v1.*
 import jp.xhw.mikke.platform.auth.AuthenticatedPrincipal
+import jp.xhw.mikke.platform.auth.grpc.AuthMetadataKeys
 import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
+import jp.xhw.mikke.platform.auth.grpc.GrpcAuthServerInterceptor
 import jp.xhw.mikke.platform.database.TransactionRunner
+import jp.xhw.mikke.platform.grpc.GrpcExceptionHandlingServerInterceptor
 import jp.xhw.mikke.platform.grpc.InternalCallerContext
 import jp.xhw.mikke.platform.grpc.InternalRpcContext
 import jp.xhw.mikke.platform.grpc.toGrpcStatusRuntimeException
@@ -132,6 +139,69 @@ class FriendshipServiceRpcTest {
 
             assertStatus(Status.Code.ALREADY_EXISTS) {
                 withUser(alice) { rpc.sendFriendRequest(request) }
+            }
+        }
+
+    @Test
+    fun `sendFriendRequest maps duplicate pending request to already exists over grpc server`(): Unit =
+        runBlocking {
+            val alice = UserId(Uuid.random())
+            val bob = UserId(Uuid.random())
+            val server =
+                ServerBuilder
+                    .forPort(0)
+                    .intercept(
+                        GrpcExceptionHandlingServerInterceptor(
+                            logger = Logger.getLogger(FriendshipServiceRpcTest::class.java.name),
+                            serviceName = "friendship-service",
+                            internalErrorDescription = "Internal friendship service error",
+                            domainExceptionMapper = { throwable ->
+                                (throwable as? FriendshipApplicationException)?.toGrpcStatus()
+                            },
+                        ),
+                    ).intercept(
+                        GrpcAuthServerInterceptor(
+                            authenticator = { headers ->
+                                headers.get(AuthMetadataKeys.Authorization)?.removePrefix("Bearer ")?.let {
+                                    AuthenticatedPrincipal(subject = it)
+                                }
+                            },
+                        ),
+                    ).addService(createRpc())
+                    .build()
+                    .start()
+            val channel =
+                ManagedChannelBuilder
+                    .forAddress("localhost", server.port)
+                    .usePlaintext()
+                    .build()
+
+            try {
+                val headers =
+                    Metadata().apply {
+                        put(AuthMetadataKeys.Authorization, "Bearer ${alice.value}")
+                    }
+                val stub =
+                    FriendshipServiceGrpcKt
+                        .FriendshipServiceCoroutineStub(channel)
+                        .withInterceptors(MetadataUtils.newAttachHeadersInterceptor(headers))
+                val request =
+                    SendFriendRequestRequest
+                        .newBuilder()
+                        .setReceiverUserId(bob.value.toString())
+                        .build()
+
+                stub.sendFriendRequest(request)
+
+                val error =
+                    assertStatus(Status.Code.ALREADY_EXISTS) {
+                        stub.sendFriendRequest(request)
+                    }
+
+                assertEquals("A pending friend request already exists between these users", error.description)
+            } finally {
+                channel.shutdownNow()
+                server.shutdownNow()
             }
         }
 
