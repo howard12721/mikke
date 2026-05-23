@@ -6,13 +6,7 @@ import jp.xhw.mikke.platform.pagination.PageSlice
 import jp.xhw.mikke.platform.pagination.ValidatedPageRequest
 import jp.xhw.mikke.platform.pagination.buildPageSlice
 import jp.xhw.mikke.services.friendship.application.command.*
-import jp.xhw.mikke.services.friendship.application.exception.BlockRelationNotFoundException
-import jp.xhw.mikke.services.friendship.application.exception.DuplicateFriendRequestException
-import jp.xhw.mikke.services.friendship.application.exception.FriendRequestNotFoundException
-import jp.xhw.mikke.services.friendship.application.exception.FriendshipNotAllowedException
-import jp.xhw.mikke.services.friendship.application.exception.FriendshipNotFoundException
-import jp.xhw.mikke.services.friendship.application.exception.FriendshipStateException
-import jp.xhw.mikke.services.friendship.application.exception.InvalidFriendshipInputException
+import jp.xhw.mikke.services.friendship.application.exception.*
 import jp.xhw.mikke.services.friendship.application.port.BlockRepository
 import jp.xhw.mikke.services.friendship.application.port.FriendRequestRepository
 import jp.xhw.mikke.services.friendship.application.port.FriendshipOutbox
@@ -348,16 +342,20 @@ class FriendshipService(
         receiverUserId: UserId,
         page: ValidatedPageRequest<CreatedAtIdCursor>,
     ): PageSlice<FriendRequest> =
-        paginateFriendRequests(page) {
-            friendRequestRepository.listIncoming(receiverUserId, it, page.cursor)
+        transactionRunner.runInTransaction {
+            paginateFriendRequests(page) {
+                friendRequestRepository.listIncoming(receiverUserId, it, page.cursor)
+            }
         }
 
     fun listOutgoingFriendRequests(
         senderUserId: UserId,
         page: ValidatedPageRequest<CreatedAtIdCursor>,
     ): PageSlice<FriendRequest> =
-        paginateFriendRequests(page) {
-            friendRequestRepository.listOutgoing(senderUserId, it, page.cursor)
+        transactionRunner.runInTransaction {
+            paginateFriendRequests(page) {
+                friendRequestRepository.listOutgoing(senderUserId, it, page.cursor)
+            }
         }
 
     fun checkCanViewUserPosts(

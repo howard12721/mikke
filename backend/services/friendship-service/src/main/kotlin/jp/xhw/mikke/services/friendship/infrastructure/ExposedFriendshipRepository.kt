@@ -5,6 +5,7 @@ import jp.xhw.mikke.platform.pagination.CreatedAtIdCursor
 import jp.xhw.mikke.platform.time.toJavaInstant
 import jp.xhw.mikke.platform.time.toKotlinInstant
 import jp.xhw.mikke.platform.uuid.exposed.uuidBinary
+import jp.xhw.mikke.services.friendship.application.exception.FriendshipStateException
 import jp.xhw.mikke.services.friendship.application.port.FriendshipRepository
 import jp.xhw.mikke.services.friendship.model.*
 import org.jetbrains.exposed.v1.core.*
@@ -28,7 +29,7 @@ class ExposedFriendshipRepository : FriendshipRepository {
             }
         } catch (e: ExposedSQLException) {
             if (e.isUniqueConstraintViolation()) {
-                throw IllegalStateException("friendship pair already exists", e)
+                throw FriendshipStateException("Friendship already exists", e)
             }
             throw e
         }

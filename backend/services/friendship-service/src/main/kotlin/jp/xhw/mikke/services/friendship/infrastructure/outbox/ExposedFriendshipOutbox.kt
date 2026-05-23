@@ -40,6 +40,10 @@ class ExposedFriendshipOutbox(
         request: FriendRequest,
         friendship: Friendship,
     ) {
+        val respondedAt = requireNotNull(request.respondedAt) {
+            "accepted friend request must have respondedAt"
+        }
+
         insert(
             eventType = FriendshipEventTypes.ACCEPTED,
             aggregateType = AGGREGATE_TYPE_FRIENDSHIP,
@@ -51,13 +55,17 @@ class ExposedFriendshipOutbox(
                         friendshipId = formatGrpcUuid(friendship.id.value),
                         userLowId = formatGrpcUuid(friendship.userLowId.value),
                         userHighId = formatGrpcUuid(friendship.userHighId.value),
-                        acceptedAt = request.respondedAt.toString(),
+                        acceptedAt = respondedAt.toString(),
                     ),
                 ),
         )
     }
 
     override fun appendFriendRequestRejected(request: FriendRequest) {
+        val respondedAt = requireNotNull(request.respondedAt) {
+            "rejected friend request must have respondedAt"
+        }
+
         insert(
             eventType = FriendshipEventTypes.REJECTED,
             aggregateType = AGGREGATE_TYPE_FRIEND_REQUEST,
@@ -68,7 +76,7 @@ class ExposedFriendshipOutbox(
                         friendRequestId = formatGrpcUuid(request.id.value),
                         senderUserId = formatGrpcUuid(request.senderUserId.value),
                         receiverUserId = formatGrpcUuid(request.receiverUserId.value),
-                        respondedAt = request.respondedAt.toString(),
+                        respondedAt = respondedAt.toString(),
                     ),
                 ),
         )

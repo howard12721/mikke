@@ -14,6 +14,7 @@ import jp.xhw.mikke.services.friendship.application.exception.DuplicateFriendReq
 import jp.xhw.mikke.services.friendship.application.exception.FriendRequestNotFoundException
 import jp.xhw.mikke.services.friendship.application.exception.FriendshipApplicationException
 import jp.xhw.mikke.services.friendship.application.exception.FriendshipNotFoundException
+import jp.xhw.mikke.services.friendship.application.exception.FriendshipStateException
 import jp.xhw.mikke.services.friendship.application.port.BlockRepository
 import jp.xhw.mikke.services.friendship.application.port.FriendRequestRepository
 import jp.xhw.mikke.services.friendship.application.port.FriendshipOutbox
@@ -203,6 +204,35 @@ class FriendshipServiceRpcTest {
                         .build(),
                 )
             }
+
+            assertStatus(Status.Code.FAILED_PRECONDITION) {
+                withUser(bob) {
+                    rpc.acceptFriendRequest(
+                        AcceptFriendRequestRequest
+                            .newBuilder()
+                            .setFriendRequestId(request.friendRequest.id)
+                            .build(),
+                    )
+                }
+            }
+        }
+
+    @Test
+    fun `acceptFriendRequest maps duplicate friendship save to failed precondition`(): Unit =
+        runBlocking {
+            val stores = RecordingFriendshipStores(friendships = DuplicatePairOnSaveFriendshipRepository())
+            val rpc = createRpc(stores)
+            val alice = UserId(Uuid.random())
+            val bob = UserId(Uuid.random())
+            val request =
+                withUser(alice) {
+                    rpc.sendFriendRequest(
+                        SendFriendRequestRequest
+                            .newBuilder()
+                            .setReceiverUserId(bob.value.toString())
+                            .build(),
+                    )
+                }
 
             assertStatus(Status.Code.FAILED_PRECONDITION) {
                 withUser(bob) {
@@ -534,7 +564,7 @@ private class ThrowingFriendRequestRepository : RecordingFriendRequestRepository
     ): FriendRequest? = throw IllegalStateException("database failed")
 }
 
-private class RecordingFriendshipRepository : FriendshipRepository {
+private open class RecordingFriendshipRepository : FriendshipRepository {
     private val friendships = mutableListOf<Friendship>()
 
     override fun save(friendship: Friendship) {
@@ -579,6 +609,12 @@ private class RecordingFriendshipRepository : FriendshipRepository {
                 it.status == FriendshipStatus.ACTIVE &&
                     (it.userLowId == userId || it.userHighId == userId)
             }.take(limit)
+}
+
+private class DuplicatePairOnSaveFriendshipRepository : RecordingFriendshipRepository() {
+    override fun save(friendship: Friendship) {
+        throw FriendshipStateException("Friendship already exists")
+    }
 }
 
 private class RecordingBlockRepository : BlockRepository {
