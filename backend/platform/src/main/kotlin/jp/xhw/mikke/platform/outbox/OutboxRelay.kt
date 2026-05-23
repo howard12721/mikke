@@ -10,6 +10,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -17,6 +19,7 @@ class OutboxRelay(
     private val publisher: OutboxPublisher,
     private val idleDelay: Duration = 1.seconds,
     private val errorDelay: Duration = 5.seconds,
+    private val logger: Logger = Logger.getLogger(OutboxRelay::class.java.name),
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
@@ -38,7 +41,7 @@ class OutboxRelay(
                     } catch (throwable: CancellationException) {
                         throw throwable
                     } catch (throwable: Throwable) {
-                        println("outbox relay failed: ${throwable.message ?: throwable::class.qualifiedName}")
+                        logger.log(Level.SEVERE, "Outbox relay failed while publishing batch", throwable)
                         delay(errorDelay)
                     }
                 }
