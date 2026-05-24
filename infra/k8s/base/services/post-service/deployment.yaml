@@ -63,6 +63,24 @@ spec:
           value: redis
         - name: REDIS_PORT
           value: '6379'
+        - name: IDENTITY_SERVICE_HOST
+          value: identity-service
+        - name: IDENTITY_SERVICE_PORT
+          value: '50051'
+        - name: IDENTITY_SERVICE_TARGET
+          value: dns:///identity-service:50051
+        - name: FRIENDSHIP_SERVICE_HOST
+          value: friendship-service
+        - name: FRIENDSHIP_SERVICE_PORT
+          value: '50052'
+        - name: FRIENDSHIP_SERVICE_TARGET
+          value: dns:///friendship-service:50052
+        - name: MEDIA_SERVICE_HOST
+          value: media-service
+        - name: MEDIA_SERVICE_PORT
+          value: '50054'
+        - name: MEDIA_SERVICE_TARGET
+          value: dns:///media-service:50054
         - name: MIKKE_INTERNAL_RPC_TOKEN
           valueFrom:
             secretKeyRef:

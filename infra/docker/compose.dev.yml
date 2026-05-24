@@ -168,6 +168,15 @@ services:
       MARIADB_PASSWORD: mikke
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      IDENTITY_SERVICE_HOST: identity-service
+      IDENTITY_SERVICE_PORT: "50051"
+      IDENTITY_SERVICE_TARGET: dns:///identity-service:50051
+      FRIENDSHIP_SERVICE_HOST: friendship-service
+      FRIENDSHIP_SERVICE_PORT: "50052"
+      FRIENDSHIP_SERVICE_TARGET: dns:///friendship-service:50052
+      MEDIA_SERVICE_HOST: media-service
+      MEDIA_SERVICE_PORT: "50054"
+      MEDIA_SERVICE_TARGET: dns:///media-service:50054
       MIKKE_INTERNAL_RPC_TOKEN: mikke-dev-internal-rpc-token
     ports:
       - "50053:50053"
@@ -176,6 +185,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      identity-service:
+        condition: service_started
+      friendship-service:
+        condition: service_started
+      media-service:
+        condition: service_started
 
   media-service:
     build:
