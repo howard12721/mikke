@@ -5,6 +5,8 @@ plugins {
 }
 
 dependencies {
+    api(project(":events:event-core"))
+
     implementation(libs.ktor.server.auth)
     implementation(libs.ktor.server.auth.jwt)
     implementation(libs.grpc.api)

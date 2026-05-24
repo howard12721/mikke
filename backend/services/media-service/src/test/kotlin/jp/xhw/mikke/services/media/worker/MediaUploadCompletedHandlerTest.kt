@@ -1,8 +1,11 @@
 package jp.xhw.mikke.services.media.worker
 
+import jp.xhw.mikke.events.core.EventEnvelope
 import jp.xhw.mikke.events.media.MediaEventTypes
+import jp.xhw.mikke.events.media.MediaUploadCompletedPayload
 import jp.xhw.mikke.platform.database.TransactionRunner
-import jp.xhw.mikke.platform.redis.RedisStreamRecord
+import jp.xhw.mikke.platform.events.ProcessedEventStore
+import jp.xhw.mikke.platform.uuid.formatGrpcUuid
 import jp.xhw.mikke.services.media.application.MediaRepository
 import jp.xhw.mikke.services.media.application.ObjectStorageClient
 import jp.xhw.mikke.services.media.application.ObjectTooLargeException
@@ -20,6 +23,7 @@ import jp.xhw.mikke.services.media.model.MediaVariantRecord
 import jp.xhw.mikke.services.media.model.MediaVariantStatus
 import jp.xhw.mikke.services.media.model.UploadMethod
 import jp.xhw.mikke.services.media.model.UploaderUserId
+import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.SchemaUtils
@@ -29,30 +33,28 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import java.time.Duration
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-class MediaThumbnailWorkerTest {
+class MediaUploadCompletedHandlerTest {
     @Test
-    fun `missing original marks thumbnail failed, records diagnostics, and acks`() =
+    fun `missing original marks thumbnail failed and records diagnostics`() =
         withProcessedEventsTable { database ->
             val eventId = Uuid.parse("00000000-0000-4000-8000-000000000101")
             val media = mediaRecord()
             val repository = InMemoryMediaRepository(media)
-            val consumer = FakeMediaThumbnailEventConsumer()
-            val worker =
-                createWorker(
+            val handler =
+                createHandler(
                     database = database,
                     repository = repository,
-                    consumer = consumer,
                     objectStorage = FakeObjectStorageClient(),
                 )
 
-            worker.processAndAck(record(eventId = eventId, media = media))
+            runBlocking {
+                handler.handle(event(eventId = eventId, media = media))
+            }
 
-            assertEquals(listOf("1-0"), consumer.ackedIds)
             assertEquals(MediaVariantStatus.FAILED, repository.thumbnailStatus(media.id))
             val processed = processedRow(database, eventId)
             assertNotNull(processed.failedAt)
@@ -66,26 +68,25 @@ class MediaThumbnailWorkerTest {
             val media = mediaRecord(contentLengthBytes = 20)
             val repository = InMemoryMediaRepository(media)
             val objectStorage = FakeObjectStorageClient()
-            val consumer = FakeMediaThumbnailEventConsumer()
-            val worker =
-                createWorker(
+            val handler =
+                createHandler(
                     database = database,
                     repository = repository,
-                    consumer = consumer,
                     objectStorage = objectStorage,
                     maxOriginalBytes = 10,
                 )
 
-            worker.processAndAck(record(eventId = eventId, media = media))
+            runBlocking {
+                handler.handle(event(eventId = eventId, media = media))
+            }
 
             assertEquals(0, objectStorage.getObjectCalls)
-            assertEquals(listOf("1-0"), consumer.ackedIds)
             assertEquals(MediaVariantStatus.FAILED, repository.thumbnailStatus(media.id))
             assertTrue(processedRow(database, eventId).lastError.orEmpty().contains("exceeds thumbnail input limit"))
         }
 
     @Test
-    fun `unsupported image preserves diagnostic and acks`() =
+    fun `unsupported image preserves diagnostic`() =
         withProcessedEventsTable { database ->
             val eventId = Uuid.parse("00000000-0000-4000-8000-000000000103")
             val media = mediaRecord()
@@ -101,48 +102,44 @@ class MediaThumbnailWorkerTest {
                                 ),
                         ),
                 )
-            val consumer = FakeMediaThumbnailEventConsumer()
-            val worker =
-                createWorker(
+            val handler =
+                createHandler(
                     database = database,
                     repository = repository,
-                    consumer = consumer,
                     objectStorage = objectStorage,
                     thumbnailGenerator = ThumbnailGenerator { _, _ -> throw UnsupportedImageException("pixel-limit breach") },
                 )
 
-            worker.processAndAck(record(eventId = eventId, media = media))
+            runBlocking {
+                handler.handle(event(eventId = eventId, media = media))
+            }
 
-            assertEquals(listOf("1-0"), consumer.ackedIds)
             assertEquals(MediaVariantStatus.FAILED, repository.thumbnailStatus(media.id))
             assertEquals("pixel-limit breach", processedRow(database, eventId).lastError)
         }
 
     @Test
-    fun `duplicate records in one batch are processed and acked once`() =
+    fun `tryMarkFailed does not overwrite successful processed event`() =
         withProcessedEventsTable { database ->
-            val eventId = Uuid.parse("00000000-0000-4000-8000-000000000104")
-            val media = mediaRecord()
-            val repository = InMemoryMediaRepository(media)
-            val objectStorage = successfulObjectStorage(media)
-            val outbox = RecordingMediaOutbox()
-            val consumer = FakeMediaThumbnailEventConsumer()
-            val worker =
-                createWorker(
-                    database = database,
-                    repository = repository,
-                    consumer = consumer,
-                    objectStorage = objectStorage,
-                    mediaOutbox = outbox,
-                    thumbnailGenerator = { _, _ -> GeneratedThumbnail(byteArrayOf(9), width = 4, height = 4) },
+            val eventId = Uuid.parse("00000000-0000-4000-8000-000000000106")
+            val eventType = MediaEventTypes.UPLOAD_COMPLETED
+
+            transaction(database) {
+                ProcessedEventStore(MediaProcessedEventsTable).tryMarkProcessed(eventId, eventType)
+            }
+
+            transaction(database) {
+                MediaProcessedEventsTable.tryMarkFailed(
+                    eventId = eventId,
+                    eventType = eventType,
+                    failedAt = NOW,
+                    lastError = "late failure",
                 )
-            val record = record(eventId = eventId, media = media)
+            }
 
-            worker.processAndAck(listOf(record, record))
-
-            assertEquals(listOf("1-0"), consumer.ackedIds)
-            assertEquals(1, objectStorage.putObjectCalls)
-            assertEquals(1, outbox.thumbnailReadyCount)
+            val row = processedRow(database, eventId)
+            assertEquals(null, row.failedAt)
+            assertEquals(null, row.lastError)
         }
 
     @Test
@@ -152,38 +149,61 @@ class MediaThumbnailWorkerTest {
             val media = mediaRecord()
             val repository = InMemoryMediaRepository(media)
             val objectStorage = FakeObjectStorageClient()
-            val consumer = FakeMediaThumbnailEventConsumer()
-            val worker =
-                createWorker(
+            val handler =
+                createHandler(
                     database = database,
                     repository = repository,
-                    consumer = consumer,
                     objectStorage = objectStorage,
                 )
 
-            worker.processAndAck(record(id = "1-0", eventId = eventId, media = media))
-            worker.processAndAck(record(id = "2-0", eventId = eventId, media = media))
+            runBlocking {
+                handler.handle(event(eventId = eventId, media = media))
+                handler.handle(event(eventId = eventId, media = media))
+            }
 
-            assertEquals(listOf("1-0", "2-0"), consumer.ackedIds)
             assertEquals(1, objectStorage.getObjectCalls)
             assertTrue(processedRow(database, eventId).lastError.orEmpty().contains(media.objectKey))
         }
 
-    private fun createWorker(
+    @Test
+    fun `successful thumbnail generation writes outbox once`() =
+        withProcessedEventsTable { database ->
+            val eventId = Uuid.parse("00000000-0000-4000-8000-000000000104")
+            val media = mediaRecord()
+            val repository = InMemoryMediaRepository(media)
+            val objectStorage = successfulObjectStorage(media)
+            val outbox = RecordingMediaOutbox()
+            val handler =
+                createHandler(
+                    database = database,
+                    repository = repository,
+                    objectStorage = objectStorage,
+                    mediaOutbox = outbox,
+                    thumbnailGenerator = { _, _ -> GeneratedThumbnail(byteArrayOf(9), width = 4, height = 4) },
+                )
+
+            runBlocking {
+                handler.handle(event(eventId = eventId, media = media))
+            }
+
+            assertEquals(1, objectStorage.putObjectCalls)
+            assertEquals(1, outbox.thumbnailReadyCount)
+        }
+
+    private fun createHandler(
         database: Database,
         repository: InMemoryMediaRepository,
-        consumer: FakeMediaThumbnailEventConsumer,
         objectStorage: FakeObjectStorageClient,
         mediaOutbox: RecordingMediaOutbox = RecordingMediaOutbox(),
         thumbnailGenerator: ThumbnailGenerator = ThumbnailGenerator { _, _ -> GeneratedThumbnail(byteArrayOf(9), width = 4, height = 4) },
         maxOriginalBytes: Long = 1_024,
-    ): MediaThumbnailWorker =
-        MediaThumbnailWorker(
-            consumerGroup = consumer,
+    ): MediaUploadCompletedHandler =
+        MediaUploadCompletedHandler(
             mediaRepository = repository,
             mediaOutbox = mediaOutbox,
             objectStorageClient = objectStorage,
             transactionRunner = ExposedTestTransactionRunner(database),
+            processedEventStore = ProcessedEventStore(MediaProcessedEventsTable),
             thumbnailGenerator = thumbnailGenerator,
             maxOriginalBytes = maxOriginalBytes,
             clock = FixedClock(NOW),
@@ -201,18 +221,27 @@ class MediaThumbnailWorkerTest {
                 ),
         )
 
-    private fun record(
-        id: String = "1-0",
+    private fun event(
         eventId: Uuid,
         media: MediaRecord,
-    ): RedisStreamRecord =
-        RedisStreamRecord(
-            id = id,
-            fields =
-                mapOf(
-                    "event_id" to eventId.toString(),
-                    "event_type" to MediaEventTypes.UPLOAD_COMPLETED,
-                    "payload" to """{"media_id":"${media.id.value}","object_key":"${media.objectKey}"}""",
+    ): EventEnvelope<MediaUploadCompletedPayload> =
+        EventEnvelope(
+            eventId = eventId.toString(),
+            eventType = MediaEventTypes.UPLOAD_COMPLETED,
+            eventVersion = 1,
+            occurredAt = NOW.toString(),
+            producer = "media-service",
+            aggregateType = "media",
+            aggregateId = formatGrpcUuid(media.id.value),
+            payload =
+                MediaUploadCompletedPayload(
+                    mediaId = formatGrpcUuid(media.id.value),
+                    uploaderUserId = formatGrpcUuid(media.uploaderUserId.value),
+                    objectKey = media.objectKey,
+                    contentType = media.contentType,
+                    contentLengthBytes = media.contentLengthBytes,
+                    etag = media.etag.orEmpty(),
+                    uploadedAt = media.uploadedAt?.toString().orEmpty(),
                 ),
         )
 
@@ -300,27 +329,6 @@ private data class ProcessedFailureRow(
     val failedAt: java.time.Instant?,
     val lastError: String?,
 )
-
-private class FakeMediaThumbnailEventConsumer : MediaThumbnailEventConsumer {
-    val ackedIds = mutableListOf<String>()
-
-    override fun ensureGroup(startId: String) = Unit
-
-    override fun read(
-        count: Long,
-        block: Duration,
-    ): List<RedisStreamRecord> = emptyList()
-
-    override fun ack(messageId: String): Long {
-        ackedIds += messageId
-        return 1
-    }
-
-    override fun claimStale(
-        minIdle: Duration,
-        count: Long,
-    ): List<RedisStreamRecord> = emptyList()
-}
 
 private class InMemoryMediaRepository(
     media: MediaRecord,
