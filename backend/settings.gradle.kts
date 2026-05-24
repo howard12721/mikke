@@ -27,6 +27,7 @@ include(
     ":events:friendship-events",
     ":events:user-events",
     ":events:guess-events",
+    ":events:media-events",
     ":services:identity-service",
     ":services:friendship-service",
     ":services:post-service",
