@@ -37,6 +37,6 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
-    testRuntimeOnly("com.h2database:h2:2.3.232")
+    testRuntimeOnly("com.h2database:h2:2.4.240")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
