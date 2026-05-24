@@ -13,6 +13,9 @@ import jp.xhw.mikke.services.post.model.MediaId
 import jp.xhw.mikke.services.post.model.PostId
 import jp.xhw.mikke.services.post.model.PostLocation
 import jp.xhw.mikke.services.post.model.UserId
+import java.util.logging.Logger
+
+private val logger: Logger = Logger.getLogger("post-service")
 
 class PostServiceRpc(
     private val postService: PostService,
@@ -22,7 +25,7 @@ class PostServiceRpc(
         val mediaId = parseGrpcUuid(request.mediaId, "media_id").let(::MediaId)
 
         val post =
-            execute {
+            mapRpcExceptions {
                 postService.createPost(
                     CreatePostCommand(
                         authorUserId = authorUserId,
@@ -50,7 +53,7 @@ class PostServiceRpc(
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         val post =
-            execute {
+            mapRpcExceptions {
                 postService.getPost(postId = postId, viewerUserId = viewerUserId)
             }
 
@@ -65,7 +68,7 @@ class PostServiceRpc(
         val postIds = request.postIdsList.map { parseGrpcUuid(it, "post_id").let(::PostId) }
 
         val posts =
-            execute {
+            mapRpcExceptions {
                 postService.batchGetPosts(postIds = postIds, viewerUserId = viewerUserId)
             }
 
@@ -84,7 +87,7 @@ class PostServiceRpc(
             ).validate()
 
         val slice =
-            execute {
+            mapRpcExceptions {
                 postService.listVisiblePosts(
                     viewerUserId = viewerUserId,
                     limit = page.limit,
@@ -114,7 +117,7 @@ class PostServiceRpc(
             ).validate()
 
         val slice =
-            execute {
+            mapRpcExceptions {
                 postService.listUserPosts(
                     authorUserId = authorUserId,
                     viewerUserId = viewerUserId,
@@ -144,7 +147,7 @@ class PostServiceRpc(
             ).validate()
 
         val slice =
-            execute {
+            mapRpcExceptions {
                 postService.listMyPosts(
                     viewerUserId = viewerUserId,
                     limit = page.limit,
@@ -168,7 +171,7 @@ class PostServiceRpc(
         val authorUserId = requireAuthenticatedUserId()
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
-        execute {
+        mapRpcExceptions {
             postService.deletePost(postId = postId, authorUserId = authorUserId)
         }
 
@@ -180,7 +183,7 @@ class PostServiceRpc(
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         val post =
-            execute {
+            mapRpcExceptions {
                 postService.updatePostCaption(
                     postId = postId,
                     authorUserId = authorUserId,
@@ -199,7 +202,7 @@ class PostServiceRpc(
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         val post =
-            execute {
+            mapRpcExceptions {
                 postService.updatePostVisibility(
                     postId = postId,
                     authorUserId = authorUserId,
@@ -218,7 +221,7 @@ class PostServiceRpc(
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         val result =
-            execute {
+            mapRpcExceptions {
                 postService.checkPostVisibility(postId = postId, viewerUserId = viewerUserId)
             }
 
@@ -235,7 +238,7 @@ class PostServiceRpc(
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         val location =
-            execute {
+            mapRpcExceptions {
                 postService.getPostLocationForGuess(postId)
             }
 
@@ -269,21 +272,12 @@ class PostServiceRpc(
     }
 }
 
-private suspend inline fun <T> execute(block: suspend () -> T): T =
-    try {
+private suspend inline fun <T> mapRpcExceptions(crossinline block: suspend () -> T): T =
+    withGrpcExceptionMapping(
+        logger = logger,
+        serviceName = "post-service",
+        internalErrorDescription = "Internal post service error",
+        domainExceptionMapper = { throwable -> throwable.toPostGrpcStatus() },
+    ) {
         block()
-    } catch (e: ValidationException) {
-        throw e.toStatus().asRuntimeException()
-    } catch (e: NotFoundException) {
-        throw e.toStatus().asRuntimeException()
-    } catch (e: PermissionDeniedException) {
-        throw e.toStatus().asRuntimeException()
-    } catch (e: AlreadyExistsException) {
-        throw e.toStatus().asRuntimeException()
-    } catch (e: UserNotActiveException) {
-        throw Status.NOT_FOUND.withDescription(e.message).asRuntimeException()
-    } catch (e: MediaNotReadyException) {
-        throw Status.FAILED_PRECONDITION.withDescription(e.message).asRuntimeException()
-    } catch (e: MediaOwnershipException) {
-        throw Status.PERMISSION_DENIED.withDescription(e.message).asRuntimeException()
     }

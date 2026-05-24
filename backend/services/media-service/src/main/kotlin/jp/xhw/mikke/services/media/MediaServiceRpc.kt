@@ -2,11 +2,14 @@ package jp.xhw.mikke.services.media
 
 import io.grpc.Status
 import jp.xhw.mikke.media.v1.*
-import jp.xhw.mikke.platform.grpc.ValidationException
 import jp.xhw.mikke.platform.grpc.currentAuthenticatedUser
+import jp.xhw.mikke.platform.grpc.withGrpcExceptionMapping
 import jp.xhw.mikke.platform.time.toProtoTimestamp
 import jp.xhw.mikke.services.media.application.*
 import jp.xhw.mikke.services.media.model.UploaderUserId
+import java.util.logging.Logger
+
+private val logger: Logger = Logger.getLogger("media-service")
 
 class MediaServiceRpc(
     private val mediaService: MediaService,
@@ -14,7 +17,7 @@ class MediaServiceRpc(
     override suspend fun createUploadUrl(request: CreateUploadUrlRequest): CreateUploadUrlResponse {
         val uploaderUserId = UploaderUserId(currentAuthenticatedUser())
         val result =
-            execute {
+            mapRpcExceptions {
                 mediaService.createUploadUrl(
                     CreateUploadUrlCommand(
                         contentType = request.contentType.requireField("content_type"),
@@ -39,7 +42,7 @@ class MediaServiceRpc(
     override suspend fun checkUpload(request: CheckUploadRequest): CheckUploadResponse {
         val requesterUserId = UploaderUserId(currentAuthenticatedUser())
         val result =
-            execute {
+            mapRpcExceptions {
                 mediaService.checkUpload(
                     CheckUploadCommand(
                         mediaId = parseMediaId(request.mediaId.requireField("media_id")),
@@ -62,7 +65,7 @@ class MediaServiceRpc(
 
     override suspend fun getMedia(request: GetMediaRequest): GetMediaResponse {
         val media =
-            execute {
+            mapRpcExceptions {
                 mediaService.getMedia(parseMediaId(request.mediaId.requireField("media_id")))
             }
 
@@ -74,7 +77,7 @@ class MediaServiceRpc(
 
     override suspend fun batchGetMedia(request: BatchGetMediaRequest): BatchGetMediaResponse {
         val mediaList =
-            execute {
+            mapRpcExceptions {
                 mediaService.batchGetMedia(
                     request.mediaIdsList.map { parseMediaId(it.requireField("media_id")) },
                 )
@@ -88,7 +91,7 @@ class MediaServiceRpc(
 
     override suspend fun deleteMedia(request: DeleteMediaRequest): DeleteMediaResponse {
         val requesterUserId = UploaderUserId(currentAuthenticatedUser())
-        execute {
+        mapRpcExceptions {
             mediaService.deleteMedia(
                 mediaId = parseMediaId(request.mediaId.requireField("media_id")),
                 requesterUserId = requesterUserId,
@@ -110,13 +113,16 @@ private fun Long.requirePositive(fieldName: String): Long {
     return this
 }
 
-private inline fun <T> execute(block: () -> T): T =
-    try {
+private suspend inline fun <T> mapRpcExceptions(crossinline block: () -> T): T =
+    withGrpcExceptionMapping(
+        logger = logger,
+        serviceName = "media-service",
+        internalErrorDescription = "Internal media service error",
+        domainExceptionMapper = { candidate ->
+            (candidate as? MediaApplicationException)?.toGrpcStatus()
+        },
+    ) {
         block()
-    } catch (e: MediaApplicationException) {
-        throw e.toGrpcStatus().asRuntimeException()
-    } catch (e: ValidationException) {
-        throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
     }
 
 private fun formatMediaId(mediaId: jp.xhw.mikke.services.media.model.MediaId): String =
