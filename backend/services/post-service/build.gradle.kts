@@ -14,7 +14,10 @@ sourceSets {
         proto {
             srcDir(rootProject.file("proto"))
             include("common/v1/*.proto")
+            include("identity/v1/*.proto")
+            include("friendship/v1/*.proto")
             include("post/v1/*.proto")
+            include("media/v1/*.proto")
         }
     }
 }
@@ -24,6 +27,9 @@ dependencies {
     implementation(project(":events:post-events"))
 
     implementation(libs.bundles.grpc.server)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.exposed.java.time)
     implementation(libs.bundles.database)
     implementation(libs.redis.client)
     implementation(libs.kotlinx.coroutines.core)
@@ -33,4 +39,5 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
