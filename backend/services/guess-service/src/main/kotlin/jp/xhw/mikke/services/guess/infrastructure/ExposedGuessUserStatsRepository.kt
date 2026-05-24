@@ -109,8 +109,7 @@ class ExposedGuessUserStatsRepository(
                 .orderBy(
                     metricOrder to SortOrder.DESC,
                     GuessUserStatsTable.userId to SortOrder.ASC,
-                )
-                .limit(limit)
+                ).limit(limit)
                 .offset(offset.toLong())
                 .toList()
 
