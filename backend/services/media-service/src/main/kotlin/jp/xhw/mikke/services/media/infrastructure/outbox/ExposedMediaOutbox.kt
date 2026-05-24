@@ -40,9 +40,10 @@ class ExposedMediaOutbox(
     }
 
     override fun appendUploadCompleted(media: MediaRecord) {
-        val uploadedAt = requireNotNull(
-            media.uploadedAt,
-        ) { "uploadedAt is required for upload completed event mediaId: ${media.id}, objectKey: ${media.objectKey}" }
+        val uploadedAt =
+            requireNotNull(
+                media.uploadedAt,
+            ) { "uploadedAt is required for upload completed event mediaId: ${media.id}, objectKey: ${media.objectKey}" }
 
         val etag = requireNotNull(media.etag) { "etag is required for upload completed event mediaId: ${media.id}" }
 

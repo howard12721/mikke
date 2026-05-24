@@ -5,7 +5,8 @@ import kotlin.time.Duration.Companion.seconds
 
 object MediaServiceConfig {
     fun deliveryUrlTtl(): kotlin.time.Duration =
-        System.getenv("MEDIA_DELIVERY_URL_TTL_SECONDS")
+        System
+            .getenv("MEDIA_DELIVERY_URL_TTL_SECONDS")
             ?.toLongOrNull()
             ?.takeIf { it > 0 }
             ?.seconds
