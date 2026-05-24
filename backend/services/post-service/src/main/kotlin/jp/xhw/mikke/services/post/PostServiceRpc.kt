@@ -26,6 +26,10 @@ class PostServiceRpc(
 
         val post =
             mapRpcExceptions {
+                if (!request.hasLocation()) {
+                    throw ValidationException("location is required")
+                }
+
                 postService.createPost(
                     CreatePostCommand(
                         authorUserId = authorUserId,
