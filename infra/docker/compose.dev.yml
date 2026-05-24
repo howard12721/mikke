@@ -238,6 +238,11 @@ services:
       MARIADB_PASSWORD: mikke
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      POST_SERVICE_HOST: post-service
+      POST_SERVICE_PORT: "50053"
+      POST_SERVICE_TARGET: dns:///post-service:50053
+      IDENTITY_JWT_SECRET: dev-identity-secret
+      MIKKE_INTERNAL_RPC_TOKEN: mikke-dev-internal-rpc-token
     ports:
       - "50055:50055"
     depends_on:
@@ -245,6 +250,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      post-service:
+        condition: service_started
 
   notification-service:
     build:
