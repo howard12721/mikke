@@ -1,10 +1,16 @@
 package jp.xhw.mikke.services.media
 
+import jp.xhw.mikke.events.media.MediaEventTypes
+import jp.xhw.mikke.events.media.MediaUploadCompletedPayload
 import jp.xhw.mikke.platform.auth.grpc.GrpcAuthServerInterceptor
 import jp.xhw.mikke.platform.auth.grpc.bearerToken
 import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
 import jp.xhw.mikke.platform.database.connectMariaDbFromEnv
 import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
+import jp.xhw.mikke.platform.events.ProcessedEventStore
+import jp.xhw.mikke.platform.events.subscription.EventHandlerRegistration
+import jp.xhw.mikke.platform.events.subscription.RedisDeadLetterSink
+import jp.xhw.mikke.platform.events.subscription.RedisEventSubscription
 import jp.xhw.mikke.platform.grpc.GrpcServerExceptionHandling
 import jp.xhw.mikke.platform.grpc.InternalRpcServerInterceptor
 import jp.xhw.mikke.platform.grpc.grpcServer
@@ -24,8 +30,8 @@ import jp.xhw.mikke.services.media.infrastructure.S3ObjectStorageClient
 import jp.xhw.mikke.services.media.infrastructure.outbox.ExposedMediaOutbox
 import jp.xhw.mikke.services.media.infrastructure.outbox.MediaOutboxTable
 import jp.xhw.mikke.services.media.worker.ImageIoThumbnailGenerator
-import jp.xhw.mikke.services.media.worker.MediaThumbnailWorker
-import jp.xhw.mikke.services.media.worker.RedisMediaThumbnailEventConsumer
+import jp.xhw.mikke.services.media.worker.MediaProcessedEventsTable
+import jp.xhw.mikke.services.media.worker.MediaUploadCompletedHandler
 import java.net.InetAddress
 import java.time.Duration
 import javax.imageio.ImageIO
@@ -82,30 +88,50 @@ fun main() {
             errorDelay = System.getenv("OUTBOX_RELAY_ERROR_DELAY_MILLIS")?.toLongOrNull()?.milliseconds ?: 5.seconds,
         )
     outboxRelay.start()
-    val thumbnailWorker =
-        MediaThumbnailWorker(
+
+    val mediaDeadLetterStream = System.getenv("MEDIA_EVENTS_DEAD_LETTER_STREAM") ?: "$mediaEventsStream.dead"
+    val thumbnailSubscription =
+        RedisEventSubscription(
             consumerGroup =
-                RedisMediaThumbnailEventConsumer(
-                    RedisStreamConsumerGroup(
-                        commands = redis.connection.sync(),
-                        streamName = mediaEventsStream,
-                        consumerGroup = System.getenv("MEDIA_THUMBNAIL_CONSUMER_GROUP") ?: "media-thumbnail-worker",
-                        consumerName =
-                            System.getenv("MEDIA_THUMBNAIL_CONSUMER_NAME")
-                                ?: "media-service-$instanceId",
+                RedisStreamConsumerGroup(
+                    commands = redis.connection.sync(),
+                    streamName = mediaEventsStream,
+                    consumerGroup = System.getenv("MEDIA_THUMBNAIL_CONSUMER_GROUP") ?: "media-thumbnail-worker",
+                    consumerName =
+                        System.getenv("MEDIA_THUMBNAIL_CONSUMER_NAME")
+                            ?: "media-service-$instanceId",
+                ),
+            handlers =
+                listOf(
+                    EventHandlerRegistration(
+                        eventType = MediaEventTypes.UPLOAD_COMPLETED,
+                        eventVersion = 1,
+                        payloadSerializer = MediaUploadCompletedPayload.serializer(),
+                        handler =
+                            MediaUploadCompletedHandler(
+                                mediaRepository = mediaRepository,
+                                mediaOutbox = mediaOutbox,
+                                objectStorageClient = objectStorageClient,
+                                transactionRunner = transactionRunner,
+                                processedEventStore = ProcessedEventStore(MediaProcessedEventsTable),
+                                thumbnailGenerator = ImageIoThumbnailGenerator(maxSourcePixels = maxThumbnailSourcePixels),
+                                maxSizePx = System.getenv("MEDIA_THUMBNAIL_MAX_SIZE_PX")?.toIntOrNull() ?: 512,
+                                maxOriginalBytes =
+                                    System.getenv("MEDIA_THUMBNAIL_MAX_ORIGINAL_BYTES")?.toLongOrNull()
+                                        ?: (20L * 1024L * 1024L),
+                            ),
                     ),
                 ),
-            mediaRepository = mediaRepository,
-            mediaOutbox = mediaOutbox,
-            objectStorageClient = objectStorageClient,
-            transactionRunner = transactionRunner,
-            thumbnailGenerator = ImageIoThumbnailGenerator(maxSourcePixels = maxThumbnailSourcePixels),
-            maxSizePx = System.getenv("MEDIA_THUMBNAIL_MAX_SIZE_PX")?.toIntOrNull() ?: 512,
-            maxOriginalBytes =
-                System.getenv("MEDIA_THUMBNAIL_MAX_ORIGINAL_BYTES")?.toLongOrNull()
-                    ?: (20L * 1024L * 1024L),
+            deadLetterSink =
+                RedisDeadLetterSink(
+                    RedisStreamProducer(
+                        commands = redis.connection.sync(),
+                        streamName = mediaDeadLetterStream,
+                    ),
+                ),
+            startId = System.getenv("MEDIA_THUMBNAIL_CONSUMER_GROUP_START_ID") ?: "$",
+            maxDeliveryAttempts = System.getenv("MEDIA_THUMBNAIL_MAX_DELIVERY_ATTEMPTS")?.toIntOrNull() ?: 10,
             readCount = System.getenv("MEDIA_THUMBNAIL_READ_COUNT")?.toLongOrNull() ?: 10,
-            consumerGroupStartId = System.getenv("MEDIA_THUMBNAIL_CONSUMER_GROUP_START_ID") ?: "$",
             staleMinIdle =
                 Duration.ofSeconds(
                     System.getenv("MEDIA_THUMBNAIL_STALE_MIN_IDLE_SECONDS")?.toLongOrNull() ?: 300,
@@ -117,11 +143,11 @@ fun main() {
                 System.getenv("MEDIA_THUMBNAIL_ERROR_DELAY_MILLIS")?.toLongOrNull()?.milliseconds
                     ?: 5.seconds,
         )
-    thumbnailWorker.start()
+    thumbnailSubscription.start()
 
     Runtime.getRuntime().addShutdownHook(
         Thread {
-            thumbnailWorker.stop()
+            thumbnailSubscription.stop()
             outboxRelay.stop()
             redis.close()
         },

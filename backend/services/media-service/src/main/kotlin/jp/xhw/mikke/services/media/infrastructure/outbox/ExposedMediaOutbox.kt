@@ -1,6 +1,8 @@
 package jp.xhw.mikke.services.media.infrastructure.outbox
 
 import jp.xhw.mikke.events.media.MediaEventTypes
+import jp.xhw.mikke.events.media.MediaThumbnailReadyPayload
+import jp.xhw.mikke.events.media.MediaUploadCompletedPayload
 import jp.xhw.mikke.platform.outbox.OutboxEntry
 import jp.xhw.mikke.platform.outbox.exposed.insertEntry
 import jp.xhw.mikke.platform.uuid.formatGrpcUuid
@@ -48,7 +50,7 @@ class ExposedMediaOutbox(
         val etag = requireNotNull(media.etag) { "etag is required for upload completed event mediaId: ${media.id}" }
 
         val payload =
-            UploadCompletedPayload(
+            MediaUploadCompletedPayload(
                 mediaId = formatGrpcUuid(media.id.value),
                 uploaderUserId = formatGrpcUuid(media.uploaderUserId.value),
                 objectKey = media.objectKey,
@@ -77,7 +79,7 @@ class ExposedMediaOutbox(
         requireNotNull(variant.readyAt) { "readyAt is required for thumbnail ready event mediaId: ${variant.mediaId}" }
 
         val payload =
-            ThumbnailReadyPayload(
+            MediaThumbnailReadyPayload(
                 mediaId = formatGrpcUuid(variant.mediaId.value),
                 objectKey = variant.objectKey,
                 contentType = variant.contentType,
@@ -143,28 +145,6 @@ private data class UploadUrlCreatedPayload(
     @SerialName("content_type") val contentType: String,
     @SerialName("content_length_bytes") val contentLengthBytes: Long,
     @SerialName("expires_at") val expiresAt: String,
-)
-
-@Serializable
-private data class UploadCompletedPayload(
-    @SerialName("media_id") val mediaId: String,
-    @SerialName("uploader_user_id") val uploaderUserId: String,
-    @SerialName("object_key") val objectKey: String,
-    @SerialName("content_type") val contentType: String,
-    @SerialName("content_length_bytes") val contentLengthBytes: Long,
-    val etag: String,
-    @SerialName("uploaded_at") val uploadedAt: String,
-)
-
-@Serializable
-private data class ThumbnailReadyPayload(
-    @SerialName("media_id") val mediaId: String,
-    @SerialName("object_key") val objectKey: String,
-    @SerialName("content_type") val contentType: String,
-    @SerialName("content_length_bytes") val contentLengthBytes: Long,
-    val width: Int?,
-    val height: Int?,
-    @SerialName("ready_at") val readyAt: String,
 )
 
 @Serializable
