@@ -107,6 +107,8 @@ message UpdatePostVisibilityResponse {
 
 message CheckPostVisibilityRequest {
   string post_id = 1;
+  reserved 2;
+  reserved "viewer_user_id";
 }
 
 message CheckPostVisibilityResponse {
