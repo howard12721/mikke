@@ -1,6 +1,7 @@
 package jp.xhw.mikke.services.post
 
 import jp.xhw.mikke.common.v1.GeoPoint
+import jp.xhw.mikke.platform.grpc.ValidationException
 import jp.xhw.mikke.platform.time.toProtoTimestamp
 import jp.xhw.mikke.post.v1.Post
 import jp.xhw.mikke.post.v1.PostStatus
@@ -46,5 +47,5 @@ fun PostVisibility.toDomain(): DomainPostVisibility =
     when (this) {
         PostVisibility.POST_VISIBILITY_FRIENDS -> DomainPostVisibility.FRIENDS
         PostVisibility.POST_VISIBILITY_PRIVATE -> DomainPostVisibility.PRIVATE
-        else -> throw IllegalArgumentException("visibility is required")
+        else -> throw ValidationException("visibility is required")
     }

@@ -9,6 +9,7 @@ import jp.xhw.mikke.platform.grpc.ValidationException
 import jp.xhw.mikke.platform.outbox.OutboxEntry
 import jp.xhw.mikke.platform.pagination.CreatedAtIdCursor
 import jp.xhw.mikke.services.post.model.*
+import jp.xhw.mikke.services.post.toDomain
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
@@ -313,6 +314,103 @@ class PostServiceTest {
     }
 
     @Test
+    fun `listUserPosts fills page from visible posts and advances cursor without duplicates`() {
+        val visible3 =
+            activePost(
+                id = PostId(Uuid.random()),
+                authorUserId = friendId,
+                visibility = PostVisibility.FRIENDS,
+                createdAt = Instant.fromEpochSeconds(fixedInstant.epochSeconds + 10, 0),
+            )
+        val visible2 =
+            activePost(
+                id = PostId(Uuid.random()),
+                authorUserId = friendId,
+                visibility = PostVisibility.FRIENDS,
+                createdAt = Instant.fromEpochSeconds(fixedInstant.epochSeconds + 20, 0),
+            )
+        val visible1 =
+            activePost(
+                id = PostId(Uuid.random()),
+                authorUserId = friendId,
+                visibility = PostVisibility.FRIENDS,
+                createdAt = Instant.fromEpochSeconds(fixedInstant.epochSeconds + 30, 0),
+            )
+        val privatePost =
+            activePost(
+                id = PostId(Uuid.random()),
+                authorUserId = friendId,
+                visibility = PostVisibility.PRIVATE,
+                createdAt = Instant.fromEpochSeconds(fixedInstant.epochSeconds + 40, 0),
+            )
+        val service =
+            createService(
+                repository = RecordingPostRepository(initial = listOf(visible3, visible2, visible1, privatePost)),
+                visibilityAuthorizer = RecordingPostVisibilityAuthorizer(canView = true),
+            )
+
+        val firstPage =
+            runBlocking {
+                service.listUserPosts(friendId, viewerId, limit = 2, cursor = null)
+            }
+        val secondPage =
+            runBlocking {
+                service.listUserPosts(
+                    authorUserId = friendId,
+                    viewerUserId = viewerId,
+                    limit = 2,
+                    cursor = CreatedAtIdCursor.decode(requireNotNull(firstPage.nextPageToken)),
+                )
+            }
+
+        assertEquals(listOf(visible1.id, visible2.id), firstPage.items.map { it.id })
+        assertTrue(firstPage.hasNextPage)
+        assertEquals(listOf(visible3.id), secondPage.items.map { it.id })
+        assertFalse(secondPage.hasNextPage)
+    }
+
+    @Test
+    fun `listVisiblePosts batches active user lookup and caches friendship checks per author`() {
+        val firstPost =
+            activePost(
+                id = PostId(Uuid.random()),
+                authorUserId = friendId,
+                createdAt = Instant.fromEpochSeconds(fixedInstant.epochSeconds + 10, 0),
+            )
+        val secondPost =
+            activePost(
+                id = PostId(Uuid.random()),
+                authorUserId = friendId,
+                createdAt = Instant.fromEpochSeconds(fixedInstant.epochSeconds + 20, 0),
+            )
+        val userStatusChecker = FakePostUserStatusChecker()
+        val visibilityAuthorizer = RecordingPostVisibilityAuthorizer(canView = true)
+        val service =
+            createService(
+                repository = RecordingPostRepository(initial = listOf(firstPost, secondPost)),
+                userStatusChecker = userStatusChecker,
+                visibilityAuthorizer = visibilityAuthorizer,
+            )
+
+        val slice =
+            runBlocking {
+                service.listVisiblePosts(viewerId, limit = 10, cursor = null)
+            }
+
+        assertEquals(listOf(secondPost.id, firstPost.id), slice.items.map { it.id })
+        assertEquals(1, userStatusChecker.filterCalls.size)
+        assertEquals(setOf(viewerId, friendId), userStatusChecker.filterCalls.single())
+        assertEquals(listOf(viewerId to friendId), visibilityAuthorizer.calls)
+    }
+
+    @Test
+    fun `toDomain rejects unspecified visibility as validation error`() {
+        assertThrows(ValidationException::class.java) {
+            jp.xhw.mikke.post.v1.PostVisibility.POST_VISIBILITY_UNSPECIFIED.toDomain()
+        }
+    }
+
+    @Test
     fun `createPost maps duplicate media to already exists`() {
         val repository =
             RecordingPostRepository(
@@ -515,13 +613,18 @@ private class RecordingPostVisibilityAuthorizer(
 private class FakePostUserStatusChecker(
     private val activeUsers: Set<UserId>? = null,
 ) : PostUserStatusChecker {
+    val filterCalls = mutableListOf<Set<UserId>>()
+
     override suspend fun requireActiveUser(userId: UserId) {
         if (userId !in resolvedActiveUsers(setOf(userId))) {
             throw UserNotActiveException()
         }
     }
 
-    override suspend fun filterActiveUsers(userIds: Collection<UserId>): Set<UserId> = resolvedActiveUsers(userIds)
+    override suspend fun filterActiveUsers(userIds: Collection<UserId>): Set<UserId> {
+        filterCalls += userIds.toSet()
+        return resolvedActiveUsers(userIds)
+    }
 
     private fun resolvedActiveUsers(userIds: Collection<UserId>): Set<UserId> = activeUsers ?: userIds.toSet()
 }

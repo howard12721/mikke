@@ -178,20 +178,42 @@ class PostService(
         limit: Int,
         cursor: CreatedAtIdCursor?,
     ): PageSlice<Post> {
-        val posts =
-            transactionRunner.runInTransaction {
-                postRepository.listByAuthor(
-                    authorUserId = authorUserId,
-                    includeDeleted = false,
-                    limit = limit + 1,
-                    cursor = cursor,
-                )
+        val visiblePosts = mutableListOf<Post>()
+        var fetchCursor = cursor
+        var lastFetched: Post?
+
+        while (visiblePosts.size <= limit) {
+            val candidates =
+                transactionRunner.runInTransaction {
+                    postRepository.listByAuthor(
+                        authorUserId = authorUserId,
+                        includeDeleted = false,
+                        limit = limit + 1,
+                        cursor = fetchCursor,
+                    )
+                }
+            if (candidates.isEmpty()) {
+                break
             }
 
-        val visiblePosts = filterVisiblePosts(posts, viewerUserId)
+            val filtered = filterVisiblePosts(candidates, viewerUserId)
+            visiblePosts.addAll(filtered)
+            lastFetched = candidates.last()
+
+            if (candidates.size <= limit) {
+                break
+            }
+
+            fetchCursor =
+                CreatedAtIdCursor(
+                    createdAt = lastFetched.createdAt,
+                    id = lastFetched.id.value,
+                )
+        }
+
         val nextCursor =
-            if (posts.size > limit) {
-                val boundary = posts[limit - 1]
+            if (visiblePosts.size > limit) {
+                val boundary = visiblePosts[limit - 1]
                 CreatedAtIdCursor(createdAt = boundary.createdAt, id = boundary.id.value)
             } else {
                 null
@@ -416,21 +438,45 @@ class PostService(
     private suspend fun filterVisiblePosts(
         posts: List<Post>,
         viewerUserId: UserId,
-    ): List<Post> =
-        posts.mapNotNull { post ->
-            runCatching { authorizePostView(post, viewerUserId) }.getOrNull()
+    ): List<Post> {
+        if (posts.isEmpty()) {
+            return emptyList()
         }
+
+        val activeUsers =
+            userStatusChecker.filterActiveUsers(
+                posts.mapTo(mutableSetOf(viewerUserId)) { it.authorUserId },
+            )
+        val friendshipVisibilityByAuthor = mutableMapOf<UserId, Boolean>()
+
+        return posts.mapNotNull { post ->
+            runCatching {
+                authorizePostView(
+                    post = post,
+                    viewerUserId = viewerUserId,
+                    activeUsers = activeUsers,
+                    friendshipVisibilityByAuthor = friendshipVisibilityByAuthor,
+                )
+            }.getOrNull()
+        }
+    }
 
     private suspend fun authorizePostView(
         post: Post,
         viewerUserId: UserId,
+        activeUsers: Set<UserId>? = null,
+        friendshipVisibilityByAuthor: MutableMap<UserId, Boolean>? = null,
     ): Post {
         if (post.status == PostStatus.DELETED) {
             throw NotFoundException("post not found")
         }
 
         if (viewerUserId == post.authorUserId) {
-            userStatusChecker.requireActiveUser(viewerUserId)
+            if (activeUsers == null) {
+                userStatusChecker.requireActiveUser(viewerUserId)
+            } else if (viewerUserId !in activeUsers) {
+                throw NotFoundException("post not found")
+            }
             return post
         }
 
@@ -438,19 +484,32 @@ class PostService(
             throw PermissionDeniedException("post is private")
         }
 
-        val activeUsers = userStatusChecker.filterActiveUsers(setOf(viewerUserId, post.authorUserId))
-        if (viewerUserId !in activeUsers || post.authorUserId !in activeUsers) {
+        val resolvedActiveUsers = activeUsers ?: userStatusChecker.filterActiveUsers(setOf(viewerUserId, post.authorUserId))
+        if (viewerUserId !in resolvedActiveUsers || post.authorUserId !in resolvedActiveUsers) {
             throw NotFoundException("post not found")
         }
 
         if (post.visibility == PostVisibility.FRIENDS &&
-            !visibilityAuthorizer.canViewFriendPosts(viewerUserId, post.authorUserId)
+            !canViewFriendPosts(
+                viewerUserId = viewerUserId,
+                authorUserId = post.authorUserId,
+                friendshipVisibilityByAuthor = friendshipVisibilityByAuthor,
+            )
         ) {
             throw PermissionDeniedException("post is not visible to viewer")
         }
 
         return post
     }
+
+    private suspend fun canViewFriendPosts(
+        viewerUserId: UserId,
+        authorUserId: UserId,
+        friendshipVisibilityByAuthor: MutableMap<UserId, Boolean>?,
+    ): Boolean =
+        friendshipVisibilityByAuthor?.getOrPut(authorUserId) {
+            visibilityAuthorizer.canViewFriendPosts(viewerUserId, authorUserId)
+        } ?: visibilityAuthorizer.canViewFriendPosts(viewerUserId, authorUserId)
 
     private fun validateCaption(caption: String) {
         if (caption.length > MAX_CAPTION_LENGTH) {
