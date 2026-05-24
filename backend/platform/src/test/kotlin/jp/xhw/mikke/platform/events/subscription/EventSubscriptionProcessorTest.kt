@@ -67,6 +67,26 @@ class EventSubscriptionProcessorTest {
         }
 
     @Test
+    fun `ignored event type is acked without dead-letter`() =
+        runBlocking {
+            val subscription =
+                subscription(
+                    ignoredEventTypes = setOf("post.caption_updated"),
+                )
+
+            val outcome =
+                subscription.processRecord(
+                    validRecord(
+                        eventType = "post.caption_updated",
+                        payloadJson = """{"post_id":"00000000-0000-4000-8000-000000000003"}""",
+                    ),
+                )
+
+            assertEquals(EventProcessOutcome.Ack, outcome)
+            assertTrue(deadLetters.isEmpty())
+        }
+
+    @Test
     fun `unsupported event version is dead-lettered and acked`() =
         runBlocking {
             val subscription = subscription()
@@ -157,10 +177,12 @@ class EventSubscriptionProcessorTest {
         deliveryCount: Long = 1,
         consumer: FakeConsumerGroup = FakeConsumerGroup(deliveryCount),
         maxDeliveryAttempts: Int = 10,
+        ignoredEventTypes: Set<String> = emptySet(),
     ): RedisEventSubscription {
         deadLetters.clear()
         return RedisEventSubscription(
             consumerGroup = consumer,
+            ignoredEventTypes = ignoredEventTypes,
             handlers =
                 listOf(
                     EventHandlerRegistration(
