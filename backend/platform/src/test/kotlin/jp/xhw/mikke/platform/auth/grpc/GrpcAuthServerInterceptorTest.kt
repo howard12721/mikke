@@ -81,6 +81,30 @@ class GrpcAuthServerInterceptorTest {
     }
 
     @Test
+    fun `allows optional method policy to bypass strict default authentication`() {
+        val methodName = "grpc.health.v1.Health/Check"
+        var authenticateCalled = false
+        val interceptor =
+            GrpcAuthServerInterceptor(
+                authenticator = {
+                    authenticateCalled = true
+                    null
+                },
+                optional = false,
+                methodAuthPolicies = mapOf(methodName to GrpcEndpointAuthPolicy.UserOptional),
+            )
+        val call = RecordingServerCall<String, String>(methodName)
+        val handler = RecordingServerCallHandler<String, String>()
+
+        interceptor.interceptCall(call, Metadata(), handler)
+
+        assertTrue(authenticateCalled)
+        assertTrue(handler.started)
+        assertNull(handler.principal)
+        assertNull(call.closedStatus)
+    }
+
+    @Test
     fun `clears current principal when user authentication is optional and absent`() {
         val interceptor =
             GrpcAuthServerInterceptor(

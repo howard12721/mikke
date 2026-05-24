@@ -1,10 +1,10 @@
-package jp.xhw.mikke.services.media.application
+package jp.xhw.mikke.services.media.infrastructure.outbox
 
 import jp.xhw.mikke.events.media.MediaEventTypes
 import jp.xhw.mikke.platform.outbox.OutboxEntry
-import jp.xhw.mikke.platform.outbox.exposed.OutboxTable
 import jp.xhw.mikke.platform.outbox.exposed.insertEntry
 import jp.xhw.mikke.platform.uuid.formatGrpcUuid
+import jp.xhw.mikke.services.media.application.port.MediaOutbox
 import jp.xhw.mikke.services.media.model.MediaId
 import jp.xhw.mikke.services.media.model.MediaRecord
 import kotlinx.serialization.SerialName
@@ -13,20 +13,6 @@ import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
-
-interface MediaOutbox {
-    fun appendUploadUrlCreated(
-        media: MediaRecord,
-        expiresAt: Instant,
-    )
-
-    fun appendUploadCompleted(media: MediaRecord)
-
-    fun appendDeleted(
-        mediaId: MediaId,
-        deletedAt: Instant,
-    )
-}
 
 class ExposedMediaOutbox(
     private val clock: Clock = Clock.System,
@@ -53,9 +39,13 @@ class ExposedMediaOutbox(
     }
 
     override fun appendUploadCompleted(media: MediaRecord) {
-        val uploadedAt =
-            media.uploadedAt
-                ?: error("uploadedAt is required for upload completed event")
+        requireNotNull(
+            media.uploadedAt,
+        ) { "uploadedAt is required for upload completed event mediaId: ${media.id}, objectKey: ${media.objectKey}" }
+
+        requireNotNull(media.etag) { "etag is required for upload completed event mediaId: ${media.id}" }
+
+        val uploadedAt = media.uploadedAt
 
         val payload =
             UploadCompletedPayload(
@@ -64,7 +54,7 @@ class ExposedMediaOutbox(
                 objectKey = media.objectKey,
                 contentType = media.contentType,
                 contentLengthBytes = media.contentLengthBytes,
-                etag = media.etag ?: error("etag is required for upload completed event"),
+                etag = media.etag,
                 uploadedAt = uploadedAt.toString(),
             )
 
@@ -115,8 +105,6 @@ class ExposedMediaOutbox(
         val json = Json { encodeDefaults = false }
     }
 }
-
-private object MediaOutboxTable : OutboxTable("media_outbox")
 
 @Serializable
 private data class UploadUrlCreatedPayload(

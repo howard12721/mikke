@@ -1,5 +1,6 @@
 package jp.xhw.mikke.services.friendship
 
+import io.grpc.health.v1.HealthGrpc
 import jp.xhw.mikke.friendship.v1.FriendshipServiceGrpc
 import jp.xhw.mikke.platform.auth.grpc.GrpcAuthServerInterceptor
 import jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
@@ -87,11 +88,7 @@ fun main() {
             ),
     ) {
         installGrpcHealth(serviceName = "friendship-service")
-        val methodAuthPolicies =
-            mapOf(
-                FriendshipServiceGrpc.getCheckCanViewUserPostsForViewerMethod().fullMethodName to
-                    GrpcEndpointAuthPolicy.InternalRequired,
-            )
+        val methodAuthPolicies = friendshipGrpcAuthPolicies()
         intercept(InternalRpcServerInterceptor(methodAuthPolicies = methodAuthPolicies))
         intercept(
             GrpcAuthServerInterceptor(
@@ -105,3 +102,11 @@ fun main() {
         addService(friendshipService)
     }.startAndAwait()
 }
+
+fun friendshipGrpcAuthPolicies(): Map<String, GrpcEndpointAuthPolicy> =
+    mapOf(
+        HealthGrpc.getCheckMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
+        HealthGrpc.getWatchMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
+        FriendshipServiceGrpc.getCheckCanViewUserPostsForViewerMethod().fullMethodName to
+            GrpcEndpointAuthPolicy.InternalRequired,
+    )

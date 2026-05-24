@@ -2,6 +2,7 @@ package jp.xhw.mikke.services.media.application
 
 import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.uuid.parseGrpcUuid
+import jp.xhw.mikke.services.media.application.port.MediaOutbox
 import jp.xhw.mikke.services.media.model.*
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
@@ -210,78 +211,81 @@ class MediaService(
             uploadedCheckUploadResult(updatedMedia)
         }
 
-    fun getMedia(mediaId: MediaId): MediaView {
-        val media =
-            mediaRepository.findById(mediaId)
-                ?: throw MediaNotFoundException()
+    fun getMedia(mediaId: MediaId): MediaView =
+        transactionRunner.runInTransaction {
+            val media =
+                mediaRepository.findById(mediaId)
+                    ?: throw MediaNotFoundException()
 
-        if (media.status == MediaStatus.DELETED) {
-            throw MediaNotFoundException()
-        }
-
-        return MediaView(
-            record = media,
-            deliveryUrls = deliveryUrlBuilder.buildForMedia(media),
-        )
-    }
-
-    fun batchGetMedia(mediaIds: List<MediaId>): List<MediaView> {
-        if (mediaIds.isEmpty()) {
-            return emptyList()
-        }
-
-        return mediaRepository
-            .findByIds(mediaIds)
-            .filter { it.status != MediaStatus.DELETED }
-            .map { media ->
-                MediaView(
-                    record = media,
-                    deliveryUrls = deliveryUrlBuilder.buildForMedia(media),
-                )
+            if (media.status == MediaStatus.DELETED) {
+                throw MediaNotFoundException()
             }
-    }
 
-    fun getMediaForDelivery(deliveryKey: String): MediaDeliveryResolution {
-        val normalizedKey = deliveryKey.trim()
-        if (normalizedKey.isEmpty()) {
-            throw MediaDeliveryNotFoundException()
+            MediaView(
+                record = media,
+                deliveryUrls = deliveryUrlBuilder.buildForMedia(media),
+            )
         }
 
-        val variant =
-            mediaRepository.findVariantByDeliveryKey(normalizedKey)
-                ?: throw MediaDeliveryNotFoundException()
-
-        val media =
-            mediaRepository.findById(variant.mediaId)
-                ?: throw MediaDeliveryNotFoundException()
-
-        if (media.status != MediaStatus.READY || media.deletedAt != null) {
-            throw MediaDeliveryNotFoundException()
-        }
-
-        if (variant.status != MediaVariantStatus.READY) {
-            if (variant.variant == MediaVariantKind.THUMBNAIL) {
-                val originalVariant =
-                    media.variants.firstOrNull { it.variant == MediaVariantKind.ORIGINAL && it.status == MediaVariantStatus.READY }
-                        ?: throw MediaDeliveryNotFoundException()
-
-                return MediaDeliveryResolution(
-                    mediaId = media.id,
-                    variant = MediaVariantKind.THUMBNAIL,
-                    objectKey = originalVariant.objectKey,
-                    contentType = originalVariant.contentType,
-                )
+    fun batchGetMedia(mediaIds: List<MediaId>): List<MediaView> =
+        transactionRunner.runInTransaction {
+            if (mediaIds.isEmpty()) {
+                return@runInTransaction emptyList()
             }
-            throw MediaDeliveryNotFoundException()
+
+            mediaRepository
+                .findByIds(mediaIds)
+                .filter { it.status != MediaStatus.DELETED }
+                .map { media ->
+                    MediaView(
+                        record = media,
+                        deliveryUrls = deliveryUrlBuilder.buildForMedia(media),
+                    )
+                }
         }
 
-        return MediaDeliveryResolution(
-            mediaId = media.id,
-            variant = variant.variant,
-            objectKey = variant.objectKey,
-            contentType = variant.contentType,
-        )
-    }
+    fun getMediaForDelivery(deliveryKey: String): MediaDeliveryResolution =
+        transactionRunner.runInTransaction {
+            val normalizedKey = deliveryKey.trim()
+            if (normalizedKey.isEmpty()) {
+                throw MediaDeliveryNotFoundException()
+            }
+
+            val variant =
+                mediaRepository.findVariantByDeliveryKey(normalizedKey)
+                    ?: throw MediaDeliveryNotFoundException()
+
+            val media =
+                mediaRepository.findById(variant.mediaId)
+                    ?: throw MediaDeliveryNotFoundException()
+
+            if (media.status != MediaStatus.READY || media.deletedAt != null) {
+                throw MediaDeliveryNotFoundException()
+            }
+
+            if (variant.status != MediaVariantStatus.READY) {
+                if (variant.variant == MediaVariantKind.THUMBNAIL) {
+                    val originalVariant =
+                        media.variants.firstOrNull { it.variant == MediaVariantKind.ORIGINAL && it.status == MediaVariantStatus.READY }
+                            ?: throw MediaDeliveryNotFoundException()
+
+                    return@runInTransaction MediaDeliveryResolution(
+                        mediaId = media.id,
+                        variant = MediaVariantKind.THUMBNAIL,
+                        objectKey = originalVariant.objectKey,
+                        contentType = originalVariant.contentType,
+                    )
+                }
+                throw MediaDeliveryNotFoundException()
+            }
+
+            MediaDeliveryResolution(
+                mediaId = media.id,
+                variant = variant.variant,
+                objectKey = variant.objectKey,
+                contentType = variant.contentType,
+            )
+        }
 
     fun deleteMedia(
         mediaId: MediaId,

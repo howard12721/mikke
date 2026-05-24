@@ -4,6 +4,7 @@ import jp.xhw.mikke.events.media.MediaEventTypes
 import jp.xhw.mikke.media.v1.UploadStatus
 import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.outbox.OutboxEntry
+import jp.xhw.mikke.services.media.application.port.MediaOutbox
 import jp.xhw.mikke.services.media.model.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
