@@ -114,16 +114,9 @@ private inline fun <T> execute(block: () -> T): T =
     try {
         block()
     } catch (e: MediaApplicationException) {
-        throw e.toStatus().asRuntimeException()
+        throw e.toGrpcStatus().asRuntimeException()
     } catch (e: ValidationException) {
         throw Status.INVALID_ARGUMENT.withDescription(e.message).asRuntimeException()
-    }
-
-private fun MediaApplicationException.toStatus(): Status =
-    when (this) {
-        is InvalidMediaInputException -> Status.INVALID_ARGUMENT.withDescription(message)
-        is MediaNotFoundException -> Status.NOT_FOUND.withDescription(message)
-        is MediaAccessDeniedException -> Status.PERMISSION_DENIED.withDescription(message)
     }
 
 private fun formatMediaId(mediaId: jp.xhw.mikke.services.media.model.MediaId): String =
