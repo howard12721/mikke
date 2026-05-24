@@ -14,14 +14,11 @@ service MediaService {
   // Checks whether the object uploaded through the issued URL is visible in Garage.
   rpc CheckUpload(CheckUploadRequest) returns (CheckUploadResponse);
 
-  // Returns media metadata and fixed delivery URLs.
+  // Returns media metadata and short-lived signed Garage/S3-compatible GET URLs.
   rpc GetMedia(GetMediaRequest) returns (GetMediaResponse);
 
-  // Returns media metadata and fixed delivery URLs for multiple media IDs.
+  // Returns media metadata and short-lived signed Garage/S3-compatible GET URLs for multiple media IDs.
   rpc BatchGetMedia(BatchGetMediaRequest) returns (BatchGetMediaResponse);
-
-  // Resolves media delivery metadata.
-  rpc GetMediaForDelivery(GetMediaForDeliveryRequest) returns (GetMediaForDeliveryResponse);
 
   // Soft deletes media.
   rpc DeleteMedia(DeleteMediaRequest) returns (DeleteMediaResponse);
@@ -70,19 +67,6 @@ message BatchGetMediaRequest {
 
 message BatchGetMediaResponse {
   repeated Media media = 1;
-}
-
-message GetMediaForDeliveryRequest {
-  // Opaque bearer key embedded in the fixed delivery URL.
-  // The delivery endpoint does not perform user/post/friendship authorization.
-  string delivery_key = 1;
-}
-
-message GetMediaForDeliveryResponse {
-  string media_id = 1;
-  MediaVariant variant = 2;
-  string object_key = 3;
-  string content_type = 4;
 }
 
 message DeleteMediaRequest {
