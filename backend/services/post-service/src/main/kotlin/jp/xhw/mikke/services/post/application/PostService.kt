@@ -450,14 +450,18 @@ class PostService(
         val friendshipVisibilityByAuthor = mutableMapOf<UserId, Boolean>()
 
         return posts.mapNotNull { post ->
-            runCatching {
+            try {
                 authorizePostView(
                     post = post,
                     viewerUserId = viewerUserId,
                     activeUsers = activeUsers,
                     friendshipVisibilityByAuthor = friendshipVisibilityByAuthor,
                 )
-            }.getOrNull()
+            } catch (_: NotFoundException) {
+                null
+            } catch (_: PermissionDeniedException) {
+                null
+            }
         }
     }
 

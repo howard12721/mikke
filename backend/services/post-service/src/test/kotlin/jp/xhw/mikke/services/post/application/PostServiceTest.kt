@@ -404,6 +404,29 @@ class PostServiceTest {
     }
 
     @Test
+    fun `listVisiblePosts propagates unexpected visibility errors`() {
+        val post =
+            activePost(
+                id = PostId(Uuid.random()),
+                authorUserId = friendId,
+            )
+        val service =
+            createService(
+                repository = RecordingPostRepository(initial = listOf(post)),
+                visibilityAuthorizer = ThrowingPostVisibilityAuthorizer(IllegalStateException("friendship unavailable")),
+            )
+
+        val exception =
+            assertThrows(IllegalStateException::class.java) {
+                runBlocking {
+                    service.listVisiblePosts(viewerId, limit = 10, cursor = null)
+                }
+            }
+
+        assertEquals("friendship unavailable", exception.message)
+    }
+
+    @Test
     fun `toDomain rejects unspecified visibility as validation error`() {
         assertThrows(ValidationException::class.java) {
             jp.xhw.mikke.post.v1.PostVisibility.POST_VISIBILITY_UNSPECIFIED
@@ -609,6 +632,15 @@ private class RecordingPostVisibilityAuthorizer(
         calls += viewerUserId to authorUserId
         return canView
     }
+}
+
+private class ThrowingPostVisibilityAuthorizer(
+    private val throwable: Throwable,
+) : PostVisibilityAuthorizer {
+    override suspend fun canViewFriendPosts(
+        viewerUserId: UserId,
+        authorUserId: UserId,
+    ): Boolean = throw throwable
 }
 
 private class FakePostUserStatusChecker(
