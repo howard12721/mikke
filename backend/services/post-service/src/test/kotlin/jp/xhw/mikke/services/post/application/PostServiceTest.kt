@@ -406,7 +406,8 @@ class PostServiceTest {
     @Test
     fun `toDomain rejects unspecified visibility as validation error`() {
         assertThrows(ValidationException::class.java) {
-            jp.xhw.mikke.post.v1.PostVisibility.POST_VISIBILITY_UNSPECIFIED.toDomain()
+            jp.xhw.mikke.post.v1.PostVisibility.POST_VISIBILITY_UNSPECIFIED
+                .toDomain()
         }
     }
 
