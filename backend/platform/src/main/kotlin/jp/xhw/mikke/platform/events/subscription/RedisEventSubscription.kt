@@ -22,6 +22,7 @@ class RedisEventSubscription(
     private val consumerGroup: RedisStreamConsumerOperations,
     private val handlers: List<EventHandlerRegistration<*>>,
     private val deadLetterSink: DeadLetterSink,
+    private val ignoredEventTypes: Set<String> = emptySet(),
     private val startId: String = "$",
     private val maxDeliveryAttempts: Int = 10,
     private val readCount: Long = 10,
@@ -40,6 +41,7 @@ class RedisEventSubscription(
             deadLetterSink = deadLetterSink,
             deliveryCountProvider = consumerGroup::deliveryCount,
             maxDeliveryAttempts = maxDeliveryAttempts,
+            ignoredEventTypes = ignoredEventTypes,
             clock = clock,
         )
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

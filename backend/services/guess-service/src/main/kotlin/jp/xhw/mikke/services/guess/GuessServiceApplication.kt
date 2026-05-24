@@ -137,6 +137,11 @@ fun main() {
                         streamName = postEventsDeadLetterStream,
                     ),
                 ),
+            ignoredEventTypes =
+                setOf(
+                    PostEventTypes.CAPTION_UPDATED,
+                    PostEventTypes.VISIBILITY_UPDATED,
+                ),
             startId = System.getenv("GUESS_POST_EVENTS_CONSUMER_GROUP_START_ID") ?: "0-0",
             maxDeliveryAttempts = System.getenv("GUESS_POST_EVENTS_MAX_DELIVERY_ATTEMPTS")?.toIntOrNull() ?: 10,
             readCount = System.getenv("GUESS_POST_EVENTS_READ_COUNT")?.toLongOrNull() ?: 10,

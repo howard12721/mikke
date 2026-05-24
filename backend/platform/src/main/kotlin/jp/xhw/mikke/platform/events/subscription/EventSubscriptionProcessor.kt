@@ -32,6 +32,7 @@ internal class EventSubscriptionProcessor(
     private val deadLetterSink: DeadLetterSink,
     private val deliveryCountProvider: (messageId: String) -> Long,
     private val maxDeliveryAttempts: Int,
+    private val ignoredEventTypes: Set<String> = emptySet(),
     private val clock: kotlin.time.Clock = kotlin.time.Clock.System,
     private val json: Json = Json { ignoreUnknownKeys = true },
 ) {
@@ -62,6 +63,10 @@ internal class EventSubscriptionProcessor(
                 )
                 return EventProcessOutcome.Ack
             }
+
+        if (metadata.eventType in ignoredEventTypes) {
+            return EventProcessOutcome.Ack
+        }
 
         val handler =
             handlersByKey[handlerKey(metadata.eventType, metadata.eventVersion)]
