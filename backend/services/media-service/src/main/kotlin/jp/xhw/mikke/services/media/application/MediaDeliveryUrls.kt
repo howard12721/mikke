@@ -3,6 +3,7 @@ package jp.xhw.mikke.services.media.application
 import jp.xhw.mikke.services.media.model.MediaRecord
 import jp.xhw.mikke.services.media.model.MediaVariantKind
 import jp.xhw.mikke.services.media.model.MediaVariantStatus
+import kotlin.time.Duration
 
 data class MediaDeliveryUrls(
     val originalUrl: String,
@@ -10,23 +11,19 @@ data class MediaDeliveryUrls(
 )
 
 class MediaDeliveryUrlBuilder(
-    private val baseUrl: String,
+    private val objectStorageClient: ObjectStorageClient,
+    private val expiresIn: Duration,
 ) {
-    fun build(deliveryKey: String): String {
-        val normalizedBase = baseUrl.trimEnd('/')
-        return "$normalizedBase/media/$deliveryKey"
-    }
-
     fun buildForMedia(media: MediaRecord): MediaDeliveryUrls {
         val originalVariant =
             media.variants.first { it.variant == MediaVariantKind.ORIGINAL }
         val thumbnailVariant =
             media.variants.first { it.variant == MediaVariantKind.THUMBNAIL }
 
-        val originalUrl = build(originalVariant.deliveryKey)
+        val originalUrl = sign(originalVariant.objectKey)
         val thumbnailUrl =
             if (thumbnailVariant.status == MediaVariantStatus.READY) {
-                build(thumbnailVariant.deliveryKey)
+                sign(thumbnailVariant.objectKey)
             } else {
                 originalUrl
             }
@@ -36,4 +33,9 @@ class MediaDeliveryUrlBuilder(
             thumbnailUrl = thumbnailUrl,
         )
     }
+
+    private fun sign(objectKey: String): String =
+        objectStorageClient
+            .createPresignedGetUrl(objectKey = objectKey, expiresIn = expiresIn)
+            .url
 }

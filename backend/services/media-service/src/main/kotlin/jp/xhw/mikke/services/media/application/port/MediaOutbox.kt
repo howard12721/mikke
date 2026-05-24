@@ -2,6 +2,7 @@ package jp.xhw.mikke.services.media.application.port
 
 import jp.xhw.mikke.services.media.model.MediaId
 import jp.xhw.mikke.services.media.model.MediaRecord
+import jp.xhw.mikke.services.media.model.MediaVariantRecord
 import kotlin.time.Instant
 
 interface MediaOutbox {
@@ -11,6 +12,8 @@ interface MediaOutbox {
     )
 
     fun appendUploadCompleted(media: MediaRecord)
+
+    fun appendThumbnailReady(variant: MediaVariantRecord)
 
     fun appendDeleted(
         mediaId: MediaId,

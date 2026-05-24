@@ -17,7 +17,3 @@ class MediaNotFoundException(
 class MediaAccessDeniedException(
     message: String = "Media access denied",
 ) : MediaApplicationException(message)
-
-class MediaDeliveryNotFoundException(
-    message: String = "Media delivery not found",
-) : MediaApplicationException(message)

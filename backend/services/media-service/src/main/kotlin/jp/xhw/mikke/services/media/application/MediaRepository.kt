@@ -12,9 +12,9 @@ interface MediaRepository {
 
     fun findByIds(ids: List<MediaId>): List<MediaRecord>
 
-    fun findVariantByDeliveryKey(deliveryKey: String): MediaVariantRecord?
-
     fun update(media: MediaRecord)
+
+    fun updateVariant(variant: MediaVariantRecord)
 
     fun findVariant(
         mediaId: MediaId,

@@ -6,6 +6,10 @@ import jp.xhw.mikke.platform.uuid.formatGrpcUuid
 import jp.xhw.mikke.services.media.model.MediaId
 import jp.xhw.mikke.services.media.model.MediaRecord
 import jp.xhw.mikke.services.media.model.MediaStatus
+import jp.xhw.mikke.services.media.model.MediaVariantId
+import jp.xhw.mikke.services.media.model.MediaVariantKind
+import jp.xhw.mikke.services.media.model.MediaVariantRecord
+import jp.xhw.mikke.services.media.model.MediaVariantStatus
 import jp.xhw.mikke.services.media.model.UploadMethod
 import jp.xhw.mikke.services.media.model.UploaderUserId
 import kotlinx.serialization.json.Json
@@ -16,6 +20,7 @@ import org.jetbrains.exposed.v1.jdbc.SchemaUtils
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -96,6 +101,50 @@ class ExposedMediaOutboxTest {
         }
 
     @Test
+    fun `append thumbnail ready writes outbox entry with payload`() =
+        withMediaOutboxTable {
+            val mediaId = MediaId(Uuid.parse("018f2a58-4d65-7c0f-8e01-451a05c0f001"))
+            val readyAt = Instant.parse("2026-05-18T04:05:06.123456Z")
+            val variant =
+                MediaVariantRecord(
+                    id = MediaVariantId(Uuid.parse("018f2a58-4d65-7c0f-8e01-451a05c0f002")),
+                    mediaId = mediaId,
+                    variant = MediaVariantKind.THUMBNAIL,
+                    objectKey = "media/thumbnail/thumb-key",
+                    status = MediaVariantStatus.READY,
+                    width = 512,
+                    height = 384,
+                    contentType = "image/jpeg",
+                    contentLengthBytes = 12345,
+                    createdAt = Instant.parse("2026-05-18T04:00:00Z"),
+                    readyAt = readyAt,
+                )
+            val outbox = ExposedMediaOutbox(FixedClock(Instant.parse("2026-05-18T04:05:07Z")))
+
+            outbox.appendThumbnailReady(variant)
+
+            val row = MediaOutboxTable.selectAll().single()
+            assertEquals(MediaEventTypes.THUMBNAIL_READY, row[MediaOutboxTable.eventType])
+            assertEquals(1, row[MediaOutboxTable.eventVersion])
+            assertEquals("media", row[MediaOutboxTable.aggregateType])
+            assertEquals(mediaId.value, row[MediaOutboxTable.aggregateId])
+            assertEquals(Instant.parse("2026-05-18T04:05:07Z"), row[MediaOutboxTable.createdAt].toKotlinInstant())
+
+            val payload = row[MediaOutboxTable.payloadJson].parseJsonObject()
+            assertEquals(formatGrpcUuid(mediaId.value), payload.string("media_id"))
+            assertEquals("media/thumbnail/thumb-key", payload.string("object_key"))
+            assertEquals("image/jpeg", payload.string("content_type"))
+            assertEquals("12345", payload.string("content_length_bytes"))
+            assertEquals("512", payload.string("width"))
+            assertEquals("384", payload.string("height"))
+            assertEquals("2026-05-18T04:05:06.123456Z", payload.string("ready_at"))
+            assertEquals(
+                setOf("media_id", "object_key", "content_type", "content_length_bytes", "width", "height", "ready_at"),
+                payload.keys,
+            )
+        }
+
+    @Test
     fun `append deleted writes outbox entry with payload`() =
         withMediaOutboxTable {
             val mediaId = MediaId(Uuid.parse("018f2a58-4d65-7c0f-8e01-451a05c0f001"))
@@ -115,6 +164,21 @@ class ExposedMediaOutboxTest {
             assertEquals(formatGrpcUuid(mediaId.value), payload.string("media_id"))
             assertEquals("2026-05-18T03:04:05.987654Z", payload.string("deleted_at"))
             assertEquals(setOf("media_id", "deleted_at"), payload.keys)
+        }
+
+    @Test
+    fun `append thumbnail ready rejects missing dimensions`() =
+        withMediaOutboxTable {
+            val outbox = ExposedMediaOutbox(FixedClock(Instant.parse("2026-05-18T04:05:07Z")))
+            val variant =
+                thumbnailVariant(
+                    width = null,
+                    height = 384,
+                )
+
+            assertThrows(IllegalArgumentException::class.java) {
+                outbox.appendThumbnailReady(variant)
+            }
         }
 
     private fun withMediaOutboxTable(block: () -> Unit) {
@@ -149,6 +213,24 @@ class ExposedMediaOutboxTest {
             uploadedAt = uploadedAt,
             deletedAt = null,
             variants = emptyList(),
+        )
+
+    private fun thumbnailVariant(
+        width: Int? = 512,
+        height: Int? = 384,
+    ): MediaVariantRecord =
+        MediaVariantRecord(
+            id = MediaVariantId(Uuid.parse("018f2a58-4d65-7c0f-8e01-451a05c0f002")),
+            mediaId = MediaId(Uuid.parse("018f2a58-4d65-7c0f-8e01-451a05c0f001")),
+            variant = MediaVariantKind.THUMBNAIL,
+            objectKey = "media/thumbnail/thumb-key",
+            status = MediaVariantStatus.READY,
+            width = width,
+            height = height,
+            contentType = "image/jpeg",
+            contentLengthBytes = 12345,
+            createdAt = Instant.parse("2026-05-18T04:00:00Z"),
+            readyAt = Instant.parse("2026-05-18T04:05:06.123456Z"),
         )
 
     private fun String.parseJsonObject(): JsonObject = Json.parseToJsonElement(this) as JsonObject

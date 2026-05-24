@@ -9,6 +9,7 @@ import jp.xhw.mikke.services.media.model.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
@@ -35,6 +36,8 @@ class MediaServiceTest {
         assertEquals(MediaStatus.PENDING_UPLOAD, repository.savedMedia?.status)
         assertEquals(uploader, repository.savedMedia?.uploaderUserId)
         assertEquals(2, repository.savedMedia?.variants?.size)
+        assertTrue(result.objectKey.startsWith("media/original/"))
+        assertFalse(result.objectKey.contains(createdMediaIdSegment(result.mediaId)))
         assertEquals("https://upload.example/put", result.uploadUrl)
         assertEquals(1, outbox.entries.size)
         assertEquals(MediaEventTypes.UPLOAD_URL_CREATED, outbox.entries.single().eventType)
@@ -174,47 +177,7 @@ class MediaServiceTest {
     }
 
     @Test
-    fun `getMediaForDelivery resolves ready original variant`() {
-        val repository = InMemoryMediaRepository()
-        val outbox = RecordingMediaOutbox()
-        val objectStorage = FakeObjectStorageClient()
-        val service = createService(repository, outbox, objectStorage)
-        val uploader = UploaderUserId(Uuid.random())
-        val created =
-            service.createUploadUrl(
-                CreateUploadUrlCommand(
-                    contentType = "image/jpeg",
-                    contentLengthBytes = 100,
-                    originalFileName = null,
-                    uploaderUserId = uploader,
-                ),
-            )
-        objectStorage.objects[created.objectKey] =
-            StoredObjectMetadata(
-                contentLengthBytes = 100,
-                contentType = "image/jpeg",
-                etag = "etag",
-            )
-        service.checkUpload(
-            CheckUploadCommand(created.mediaId, created.objectKey),
-            requesterUserId = uploader,
-        )
-
-        val originalDeliveryKey =
-            repository.savedMedia
-                ?.variants
-                ?.first { it.variant == MediaVariantKind.ORIGINAL }
-                ?.deliveryKey
-                ?: error("missing original variant")
-
-        val resolution = service.getMediaForDelivery(originalDeliveryKey)
-
-        assertEquals(created.mediaId, resolution.mediaId)
-        assertEquals(created.objectKey, resolution.objectKey)
-    }
-
-    @Test
-    fun `getMediaForDelivery falls back to original object for pending thumbnail`() {
+    fun `getMedia returns signed GET URL and falls back thumbnail url to original when pending`() {
         val repository = InMemoryMediaRepository()
         val service = createService(repository, RecordingMediaOutbox(), FakeObjectStorageClient())
         val mediaId = MediaId(Uuid.random())
@@ -235,21 +198,20 @@ class MediaServiceTest {
                 deletedAt = null,
                 variants =
                     listOf(
-                        variant(mediaId, MediaVariantKind.ORIGINAL, "orig-key", originalObjectKey, MediaVariantStatus.READY, now),
-                        variant(mediaId, MediaVariantKind.THUMBNAIL, "thumb-key", "media/test/thumbnail", MediaVariantStatus.PENDING, now),
+                        variant(mediaId, MediaVariantKind.ORIGINAL, originalObjectKey, MediaVariantStatus.READY, now),
+                        variant(mediaId, MediaVariantKind.THUMBNAIL, "media/test/thumbnail", MediaVariantStatus.PENDING, now),
                     ),
             )
 
-        val resolution = service.getMediaForDelivery("thumb-key")
+        val view = service.getMedia(mediaId)
 
-        assertEquals(MediaVariantKind.THUMBNAIL, resolution.variant)
-        assertEquals(originalObjectKey, resolution.objectKey)
+        assertEquals("https://download.example/media/test/original?expires=900", view.deliveryUrls.originalUrl)
+        assertEquals(view.deliveryUrls.originalUrl, view.deliveryUrls.thumbnailUrl)
     }
 
     private fun variant(
         mediaId: MediaId,
         kind: MediaVariantKind,
-        deliveryKey: String,
         objectKey: String,
         status: MediaVariantStatus,
         now: Instant,
@@ -257,7 +219,6 @@ class MediaServiceTest {
         id = MediaVariantId(Uuid.random()),
         mediaId = mediaId,
         variant = kind,
-        deliveryKey = deliveryKey,
         objectKey = objectKey,
         status = status,
         width = null,
@@ -277,11 +238,17 @@ class MediaServiceTest {
             mediaRepository = repository,
             mediaOutbox = outbox,
             objectStorageClient = objectStorage,
-            deliveryUrlBuilder = MediaDeliveryUrlBuilder("https://media.mikke.pics"),
+            deliveryUrlBuilder =
+                MediaDeliveryUrlBuilder(
+                    objectStorageClient = objectStorage,
+                    expiresIn = 15.minutes,
+                ),
             transactionRunner = ImmediateTransactionRunner,
             clock = FixedClock(Instant.fromEpochSeconds(1_700_000_000, 0)),
         )
 }
+
+private fun createdMediaIdSegment(mediaId: MediaId): String = mediaId.value.toString()
 
 private class InMemoryMediaRepository : MediaRepository {
     private val mediaById = linkedMapOf<Uuid, MediaRecord>()
@@ -302,14 +269,19 @@ private class InMemoryMediaRepository : MediaRepository {
 
     override fun findByIds(ids: List<MediaId>): List<MediaRecord> = ids.mapNotNull { mediaById[it.value] }
 
-    override fun findVariantByDeliveryKey(deliveryKey: String): MediaVariantRecord? =
-        mediaById.values
-            .asSequence()
-            .flatMap { it.variants.asSequence() }
-            .firstOrNull { it.deliveryKey == deliveryKey }
-
     override fun update(media: MediaRecord) {
         mediaById[media.id.value] = media
+    }
+
+    override fun updateVariant(variant: MediaVariantRecord) {
+        val media = mediaById[variant.mediaId.value] ?: return
+        mediaById[variant.mediaId.value] =
+            media.copy(
+                variants =
+                    media.variants.map {
+                        if (it.variant == variant.variant) variant else it
+                    },
+            )
     }
 
     override fun findVariant(
@@ -348,6 +320,18 @@ private class RecordingMediaOutbox : MediaOutbox {
             )
     }
 
+    override fun appendThumbnailReady(variant: MediaVariantRecord) {
+        entries +=
+            OutboxEntry(
+                id = Uuid.random(),
+                eventType = MediaEventTypes.THUMBNAIL_READY,
+                aggregateType = "media",
+                aggregateId = variant.mediaId.value,
+                payloadJson = "{}",
+                createdAt = variant.readyAt ?: Instant.fromEpochSeconds(1_700_000_000, 0),
+            )
+    }
+
     override fun appendDeleted(
         mediaId: MediaId,
         deletedAt: Instant,
@@ -366,6 +350,7 @@ private class RecordingMediaOutbox : MediaOutbox {
 
 private class FakeObjectStorageClient : ObjectStorageClient {
     val objects = mutableMapOf<String, StoredObjectMetadata>()
+    val objectBytes = mutableMapOf<String, ByteArray>()
 
     override fun createPresignedPutUrl(
         objectKey: String,
@@ -379,7 +364,44 @@ private class FakeObjectStorageClient : ObjectStorageClient {
             expiresAt = Instant.fromEpochSeconds(1_700_000_900, 0),
         )
 
+    override fun createPresignedGetUrl(
+        objectKey: String,
+        expiresIn: kotlin.time.Duration,
+    ): PresignedDownload =
+        PresignedDownload(
+            url = "https://download.example/$objectKey?expires=${expiresIn.inWholeSeconds}",
+            expiresAt = Instant.fromEpochSeconds(1_700_000_000 + expiresIn.inWholeSeconds),
+        )
+
     override fun headObject(objectKey: String): StoredObjectMetadata? = objects[objectKey]
+
+    override fun getObject(
+        objectKey: String,
+        maxContentLengthBytes: Long?,
+    ): StoredObject? {
+        val bytes = objectBytes[objectKey] ?: return null
+        if (maxContentLengthBytes != null && bytes.size.toLong() > maxContentLengthBytes) {
+            throw ObjectTooLargeException(objectKey, bytes.size.toLong(), maxContentLengthBytes)
+        }
+        val metadata = objects[objectKey] ?: return null
+        return StoredObject(bytes = bytes, metadata = metadata)
+    }
+
+    override fun putObject(
+        objectKey: String,
+        contentType: String,
+        bytes: ByteArray,
+    ): StoredObjectMetadata {
+        objectBytes[objectKey] = bytes
+        val metadata =
+            StoredObjectMetadata(
+                contentLengthBytes = bytes.size.toLong(),
+                contentType = contentType,
+                etag = "etag-$objectKey",
+            )
+        objects[objectKey] = metadata
+        return metadata
+    }
 }
 
 private object ImmediateTransactionRunner : TransactionRunner {

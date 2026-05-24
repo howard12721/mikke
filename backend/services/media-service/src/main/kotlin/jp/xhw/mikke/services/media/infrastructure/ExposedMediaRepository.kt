@@ -33,7 +33,6 @@ class ExposedMediaRepository : MediaRepository {
                 row[MediaVariantsTable.id] = variant.id.value
                 row[MediaVariantsTable.mediaId] = variant.mediaId.value
                 row[MediaVariantsTable.variantKind] = variant.variant.toDatabaseValue()
-                row[MediaVariantsTable.deliveryKey] = variant.deliveryKey
                 row[MediaVariantsTable.storedObjectKey] = variant.objectKey
                 row[MediaVariantsTable.status] = variant.status.toDatabaseValue()
                 row[MediaVariantsTable.width] = variant.width
@@ -82,14 +81,6 @@ class ExposedMediaRepository : MediaRepository {
         return ids.mapNotNull { byId[it.value] }
     }
 
-    override fun findVariantByDeliveryKey(deliveryKey: String): MediaVariantRecord? =
-        MediaVariantsTable
-            .selectAll()
-            .where { MediaVariantsTable.deliveryKey eq deliveryKey }
-            .limit(1)
-            .singleOrNull()
-            ?.toMediaVariantRecord()
-
     override fun update(media: MediaRecord) {
         MediaTable.update({ MediaTable.id eq media.id.value }) { row ->
             row[uploaderUserId] = media.uploaderUserId.value
@@ -105,20 +96,23 @@ class ExposedMediaRepository : MediaRepository {
         }
 
         media.variants.forEach { variant ->
-            MediaVariantsTable.update({
-                (MediaVariantsTable.mediaId eq variant.mediaId.value) and
-                    (MediaVariantsTable.variantKind eq variant.variant.toDatabaseValue())
-            }) { row ->
-                row[MediaVariantsTable.deliveryKey] = variant.deliveryKey
-                row[MediaVariantsTable.storedObjectKey] = variant.objectKey
-                row[MediaVariantsTable.status] = variant.status.toDatabaseValue()
-                row[MediaVariantsTable.width] = variant.width
-                row[MediaVariantsTable.height] = variant.height
-                row[MediaVariantsTable.contentType] = variant.contentType
-                row[MediaVariantsTable.contentLengthBytes] = variant.contentLengthBytes
-                row[MediaVariantsTable.createdAt] = variant.createdAt.toJavaInstant()
-                row[MediaVariantsTable.readyAt] = variant.readyAt?.toJavaInstant()
-            }
+            updateVariant(variant)
+        }
+    }
+
+    override fun updateVariant(variant: MediaVariantRecord) {
+        MediaVariantsTable.update({
+            (MediaVariantsTable.mediaId eq variant.mediaId.value) and
+                (MediaVariantsTable.variantKind eq variant.variant.toDatabaseValue())
+        }) { row ->
+            row[MediaVariantsTable.storedObjectKey] = variant.objectKey
+            row[MediaVariantsTable.status] = variant.status.toDatabaseValue()
+            row[MediaVariantsTable.width] = variant.width
+            row[MediaVariantsTable.height] = variant.height
+            row[MediaVariantsTable.contentType] = variant.contentType
+            row[MediaVariantsTable.contentLengthBytes] = variant.contentLengthBytes
+            row[MediaVariantsTable.createdAt] = variant.createdAt.toJavaInstant()
+            row[MediaVariantsTable.readyAt] = variant.readyAt?.toJavaInstant()
         }
     }
 
@@ -173,7 +167,6 @@ class ExposedMediaRepository : MediaRepository {
             id = MediaVariantId(this[MediaVariantsTable.id]),
             mediaId = MediaId(this[MediaVariantsTable.mediaId]),
             variant = MediaVariantKind.fromDatabaseValue(this[MediaVariantsTable.variantKind]),
-            deliveryKey = this[MediaVariantsTable.deliveryKey],
             objectKey = this[MediaVariantsTable.storedObjectKey],
             status = MediaVariantStatus.fromDatabaseValue(this[MediaVariantsTable.status]),
             width = this[MediaVariantsTable.width],
@@ -205,7 +198,6 @@ private object MediaVariantsTable : Table("media_variants") {
     val id = uuidBinary("id")
     val mediaId = uuidBinary("media_id")
     val variantKind = varchar("variant", length = 32)
-    val deliveryKey = varchar("delivery_key", length = 64)
     val storedObjectKey = varchar("object_key", length = 512)
     val status = varchar("status", length = 32)
     val width = integer("width").nullable()

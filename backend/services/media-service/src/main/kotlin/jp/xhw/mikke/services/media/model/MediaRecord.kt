@@ -21,7 +21,6 @@ data class MediaVariantRecord(
     val id: MediaVariantId,
     val mediaId: MediaId,
     val variant: MediaVariantKind,
-    val deliveryKey: String,
     val objectKey: String,
     val status: MediaVariantStatus,
     val width: Int?,

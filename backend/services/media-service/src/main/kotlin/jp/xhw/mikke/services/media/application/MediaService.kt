@@ -45,13 +45,6 @@ data class MediaView(
     val deliveryUrls: MediaDeliveryUrls,
 )
 
-data class MediaDeliveryResolution(
-    val mediaId: MediaId,
-    val variant: MediaVariantKind,
-    val objectKey: String,
-    val contentType: String,
-)
-
 class MediaService(
     private val mediaRepository: MediaRepository,
     private val mediaOutbox: MediaOutbox,
@@ -69,15 +62,14 @@ class MediaService(
 
             val now = clock.now()
             val mediaId = MediaId(Uuid.random())
-            val originalObjectKey = MediaObjectKeys.forVariant(mediaId, MediaVariantKind.ORIGINAL)
-            val thumbnailObjectKey = MediaObjectKeys.forVariant(mediaId, MediaVariantKind.THUMBNAIL)
+            val originalObjectKey = MediaObjectKeys.forVariant(MediaVariantKind.ORIGINAL)
+            val thumbnailObjectKey = MediaObjectKeys.forVariant(MediaVariantKind.THUMBNAIL)
 
             val originalVariant =
                 MediaVariantRecord(
                     id = MediaVariantId(Uuid.random()),
                     mediaId = mediaId,
                     variant = MediaVariantKind.ORIGINAL,
-                    deliveryKey = DeliveryKeyGenerator.generate(),
                     objectKey = originalObjectKey,
                     status = MediaVariantStatus.PENDING,
                     width = null,
@@ -93,7 +85,6 @@ class MediaService(
                     id = MediaVariantId(Uuid.random()),
                     mediaId = mediaId,
                     variant = MediaVariantKind.THUMBNAIL,
-                    deliveryKey = DeliveryKeyGenerator.generate(),
                     objectKey = thumbnailObjectKey,
                     status = MediaVariantStatus.PENDING,
                     width = null,
@@ -242,49 +233,6 @@ class MediaService(
                         deliveryUrls = deliveryUrlBuilder.buildForMedia(media),
                     )
                 }
-        }
-
-    fun getMediaForDelivery(deliveryKey: String): MediaDeliveryResolution =
-        transactionRunner.runInTransaction {
-            val normalizedKey = deliveryKey.trim()
-            if (normalizedKey.isEmpty()) {
-                throw MediaDeliveryNotFoundException()
-            }
-
-            val variant =
-                mediaRepository.findVariantByDeliveryKey(normalizedKey)
-                    ?: throw MediaDeliveryNotFoundException()
-
-            val media =
-                mediaRepository.findById(variant.mediaId)
-                    ?: throw MediaDeliveryNotFoundException()
-
-            if (media.status != MediaStatus.READY || media.deletedAt != null) {
-                throw MediaDeliveryNotFoundException()
-            }
-
-            if (variant.status != MediaVariantStatus.READY) {
-                if (variant.variant == MediaVariantKind.THUMBNAIL) {
-                    val originalVariant =
-                        media.variants.firstOrNull { it.variant == MediaVariantKind.ORIGINAL && it.status == MediaVariantStatus.READY }
-                            ?: throw MediaDeliveryNotFoundException()
-
-                    return@runInTransaction MediaDeliveryResolution(
-                        mediaId = media.id,
-                        variant = MediaVariantKind.THUMBNAIL,
-                        objectKey = originalVariant.objectKey,
-                        contentType = originalVariant.contentType,
-                    )
-                }
-                throw MediaDeliveryNotFoundException()
-            }
-
-            MediaDeliveryResolution(
-                mediaId = media.id,
-                variant = variant.variant,
-                objectKey = variant.objectKey,
-                contentType = variant.contentType,
-            )
         }
 
     fun deleteMedia(

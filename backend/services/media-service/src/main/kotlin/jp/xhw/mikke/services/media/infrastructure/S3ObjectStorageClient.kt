@@ -2,18 +2,25 @@ package jp.xhw.mikke.services.media.infrastructure
 
 import jp.xhw.mikke.platform.time.toKotlinInstant
 import jp.xhw.mikke.services.media.application.ObjectStorageClient
+import jp.xhw.mikke.services.media.application.ObjectTooLargeException
+import jp.xhw.mikke.services.media.application.PresignedDownload
 import jp.xhw.mikke.services.media.application.PresignedUpload
+import jp.xhw.mikke.services.media.application.StoredObject
 import jp.xhw.mikke.services.media.application.StoredObjectMetadata
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.awscore.exception.AwsServiceException
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation
+import software.amazon.awssdk.core.sync.RequestBody
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.S3Configuration
+import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.s3.presigner.S3Presigner
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest
 import java.net.URI
 import kotlin.time.Duration
@@ -86,6 +93,30 @@ class S3ObjectStorageClient(
         )
     }
 
+    override fun createPresignedGetUrl(
+        objectKey: String,
+        expiresIn: Duration,
+    ): PresignedDownload {
+        val getObjectRequest =
+            GetObjectRequest
+                .builder()
+                .bucket(config.bucket)
+                .key(objectKey)
+                .build()
+        val presignedRequest =
+            GetObjectPresignRequest
+                .builder()
+                .signatureDuration(expiresIn.toJavaDuration())
+                .getObjectRequest(getObjectRequest)
+                .build()
+        val presigned = presigner.presignGetObject(presignedRequest)
+
+        return PresignedDownload(
+            url = presigned.url().toString(),
+            expiresAt = presigned.expiration().toKotlinInstant(),
+        )
+    }
+
     override fun headObject(objectKey: String): StoredObjectMetadata? {
         val request =
             HeadObjectRequest
@@ -112,6 +143,82 @@ class S3ObjectStorageClient(
         }
     }
 
+    override fun getObject(
+        objectKey: String,
+        maxContentLengthBytes: Long?,
+    ): StoredObject? {
+        val request =
+            GetObjectRequest
+                .builder()
+                .bucket(config.bucket)
+                .key(objectKey)
+                .build()
+
+        return try {
+            s3Client.getObject(request).use { response ->
+                val declaredLength = response.response().contentLength()
+                if (maxContentLengthBytes != null && declaredLength > maxContentLengthBytes) {
+                    throw ObjectTooLargeException(objectKey, declaredLength, maxContentLengthBytes)
+                }
+
+                val bytes =
+                    if (maxContentLengthBytes == null) {
+                        response.readAllBytes()
+                    } else {
+                        response.readBounded(objectKey, maxContentLengthBytes)
+                    }
+                StoredObject(
+                    bytes = bytes,
+                    metadata =
+                        StoredObjectMetadata(
+                            contentLengthBytes = bytes.size.toLong(),
+                            contentType = response.response().contentType() ?: "application/octet-stream",
+                            etag =
+                                response
+                                    .response()
+                                    .eTag()
+                                    ?.trim('"')
+                                    .orEmpty(),
+                        ),
+                )
+            }
+        } catch (_: NoSuchKeyException) {
+            null
+        } catch (e: AwsServiceException) {
+            if (e.statusCode() == 404) {
+                null
+            } else {
+                throw e
+            }
+        }
+    }
+
+    override fun putObject(
+        objectKey: String,
+        contentType: String,
+        bytes: ByteArray,
+    ): StoredObjectMetadata {
+        val request =
+            PutObjectRequest
+                .builder()
+                .bucket(config.bucket)
+                .key(objectKey)
+                .contentType(contentType)
+                .contentLength(bytes.size.toLong())
+                .build()
+        val response = s3Client.putObject(request, RequestBody.fromBytes(bytes))
+
+        return StoredObjectMetadata(
+            contentLengthBytes = bytes.size.toLong(),
+            contentType = contentType,
+            etag =
+                response
+                    .eTag()
+                    ?.trim('"')
+                    .orEmpty(),
+        )
+    }
+
     private companion object {
         fun createS3Client(config: ObjectStorageConfig): S3Client =
             S3Client
@@ -119,6 +226,7 @@ class S3ObjectStorageClient(
                 .endpointOverride(config.endpoint)
                 .region(Region.of(config.region))
                 .credentialsProvider(credentialsProvider(config))
+                .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
                 .serviceConfiguration(
                     S3Configuration.builder().pathStyleAccessEnabled(config.forcePathStyle).build(),
                 ).build()
@@ -138,4 +246,17 @@ class S3ObjectStorageClient(
                 AwsBasicCredentials.create(config.accessKeyId, config.secretAccessKey),
             )
     }
+}
+
+private fun java.io.InputStream.readBounded(
+    objectKey: String,
+    maxContentLengthBytes: Long,
+): ByteArray {
+    require(maxContentLengthBytes < Int.MAX_VALUE) { "maxContentLengthBytes must fit into memory-backed object reads" }
+    val limit = maxContentLengthBytes.toInt()
+    val bytes = readNBytes(limit + 1)
+    if (bytes.size > limit) {
+        throw ObjectTooLargeException(objectKey, bytes.size.toLong(), maxContentLengthBytes)
+    }
+    return bytes
 }

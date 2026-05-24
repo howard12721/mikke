@@ -1,13 +1,10 @@
 package jp.xhw.mikke.services.media
 
-import jp.xhw.mikke.services.media.application.MediaDeliveryUrlBuilder
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 object MediaServiceConfig {
-    fun deliveryUrlBuilder(): MediaDeliveryUrlBuilder {
-        val baseUrl =
-            System.getenv("MEDIA_DELIVERY_BASE_URL")
-                ?: System.getenv("OBJECT_STORAGE_PUBLIC_ENDPOINT")
-                ?: "http://localhost:3900"
-        return MediaDeliveryUrlBuilder(baseUrl = baseUrl)
-    }
+    fun deliveryUrlTtl(): kotlin.time.Duration =
+        System.getenv("MEDIA_DELIVERY_URL_TTL_SECONDS")?.toLongOrNull()?.seconds
+            ?: 15.minutes
 }

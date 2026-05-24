@@ -3,38 +3,36 @@ package jp.xhw.mikke.services.media.application
 import jp.xhw.mikke.services.media.model.*
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class MediaDeliveryUrlBuilderTest {
-    private val builder = MediaDeliveryUrlBuilder("https://media.mikke.pics")
-
-    @Test
-    fun `builds delivery url from delivery key`() {
-        assertEquals(
-            "https://media.mikke.pics/media/abc123",
-            builder.build("abc123"),
+    private val objectStorage = FakeDeliveryObjectStorageClient()
+    private val builder =
+        MediaDeliveryUrlBuilder(
+            objectStorageClient = objectStorage,
+            expiresIn = 15.minutes,
         )
-    }
 
     @Test
-    fun `falls back thumbnail url to original when thumbnail is pending`() {
+    fun `falls back thumbnail signed url to original when thumbnail is pending`() {
         val media = sampleMedia(thumbnailStatus = MediaVariantStatus.PENDING)
 
         val urls = builder.buildForMedia(media)
 
-        assertEquals("https://media.mikke.pics/media/original-key", urls.originalUrl)
+        assertEquals("https://signed.example/media/test/original?expires=900", urls.originalUrl)
         assertEquals(urls.originalUrl, urls.thumbnailUrl)
     }
 
     @Test
-    fun `uses thumbnail delivery key when thumbnail is ready`() {
+    fun `uses thumbnail signed url when thumbnail is ready`() {
         val media = sampleMedia(thumbnailStatus = MediaVariantStatus.READY)
 
         val urls = builder.buildForMedia(media)
 
-        assertEquals("https://media.mikke.pics/media/original-key", urls.originalUrl)
-        assertEquals("https://media.mikke.pics/media/thumbnail-key", urls.thumbnailUrl)
+        assertEquals("https://signed.example/media/test/original?expires=900", urls.originalUrl)
+        assertEquals("https://signed.example/media/test/thumbnail?expires=900", urls.thumbnailUrl)
     }
 
     private fun sampleMedia(thumbnailStatus: MediaVariantStatus): MediaRecord {
@@ -58,7 +56,6 @@ class MediaDeliveryUrlBuilderTest {
                         id = MediaVariantId(Uuid.random()),
                         mediaId = mediaId,
                         variant = MediaVariantKind.ORIGINAL,
-                        deliveryKey = "original-key",
                         objectKey = "media/test/original",
                         status = MediaVariantStatus.PENDING,
                         width = null,
@@ -72,7 +69,6 @@ class MediaDeliveryUrlBuilderTest {
                         id = MediaVariantId(Uuid.random()),
                         mediaId = mediaId,
                         variant = MediaVariantKind.THUMBNAIL,
-                        deliveryKey = "thumbnail-key",
                         objectKey = "media/test/thumbnail",
                         status = thumbnailStatus,
                         width = null,
@@ -85,4 +81,35 @@ class MediaDeliveryUrlBuilderTest {
                 ),
         )
     }
+}
+
+private class FakeDeliveryObjectStorageClient : ObjectStorageClient {
+    override fun createPresignedPutUrl(
+        objectKey: String,
+        contentType: String,
+        contentLengthBytes: Long,
+        expiresIn: kotlin.time.Duration,
+    ): PresignedUpload = error("not used")
+
+    override fun createPresignedGetUrl(
+        objectKey: String,
+        expiresIn: kotlin.time.Duration,
+    ): PresignedDownload =
+        PresignedDownload(
+            url = "https://signed.example/$objectKey?expires=${expiresIn.inWholeSeconds}",
+            expiresAt = Instant.fromEpochSeconds(1_700_000_000 + expiresIn.inWholeSeconds),
+        )
+
+    override fun headObject(objectKey: String): StoredObjectMetadata? = error("not used")
+
+    override fun getObject(
+        objectKey: String,
+        maxContentLengthBytes: Long?,
+    ): StoredObject? = error("not used")
+
+    override fun putObject(
+        objectKey: String,
+        contentType: String,
+        bytes: ByteArray,
+    ): StoredObjectMetadata = error("not used")
 }

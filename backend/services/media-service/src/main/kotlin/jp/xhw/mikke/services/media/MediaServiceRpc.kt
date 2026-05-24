@@ -86,15 +86,6 @@ class MediaServiceRpc(
             .build()
     }
 
-    override suspend fun getMediaForDelivery(request: GetMediaForDeliveryRequest): GetMediaForDeliveryResponse {
-        val resolution =
-            execute {
-                mediaService.getMediaForDelivery(request.deliveryKey.requireField("delivery_key"))
-            }
-
-        return resolution.toProto()
-    }
-
     override suspend fun deleteMedia(request: DeleteMediaRequest): DeleteMediaResponse {
         val requesterUserId = UploaderUserId(currentAuthenticatedUser())
         execute {
@@ -133,7 +124,6 @@ private fun MediaApplicationException.toStatus(): Status =
         is InvalidMediaInputException -> Status.INVALID_ARGUMENT.withDescription(message)
         is MediaNotFoundException -> Status.NOT_FOUND.withDescription(message)
         is MediaAccessDeniedException -> Status.PERMISSION_DENIED.withDescription(message)
-        is MediaDeliveryNotFoundException -> Status.NOT_FOUND.withDescription(message)
     }
 
 private fun formatMediaId(mediaId: jp.xhw.mikke.services.media.model.MediaId): String =
