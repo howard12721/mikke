@@ -19,4 +19,16 @@ class UserMutation(
                 displayName = input.displayName,
                 avatarMediaId = input.avatarMediaId,
             ).toGraphQl()
+
+    suspend fun changePassword(
+        input: ChangePasswordInput,
+        environment: DataFetchingEnvironment,
+    ): ChangePasswordPayload {
+        userApiService.changePassword(
+            context = environment.apiRequestContext(),
+            currentPassword = input.currentPassword,
+            newPassword = input.newPassword,
+        )
+        return ChangePasswordPayload(success = true)
+    }
 }

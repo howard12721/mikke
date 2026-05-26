@@ -96,6 +96,24 @@ class GrpcUserGateway(
                 .toCurrentUser()
         }
 
+    override suspend fun changePassword(
+        context: ApiRequestContext,
+        currentPassword: String,
+        newPassword: String,
+    ) {
+        call {
+            context
+                .stub()
+                .changePassword(
+                    ChangePasswordRequest
+                        .newBuilder()
+                        .setCurrentPassword(currentPassword)
+                        .setNewPassword(newPassword)
+                        .build(),
+                )
+        }
+    }
+
     override fun close() = closeChannel(channel)
 
     private fun ApiRequestContext.stub(): IdentityServiceGrpcKt.IdentityServiceCoroutineStub =

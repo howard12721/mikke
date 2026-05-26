@@ -32,6 +32,15 @@ data class UpdateProfileInput(
     val avatarMediaId: String? = null,
 )
 
+data class ChangePasswordInput(
+    val currentPassword: String,
+    val newPassword: String,
+)
+
+data class ChangePasswordPayload(
+    val success: Boolean,
+)
+
 fun jp.xhw.mikke.api.user.application.PublicUser.toGraphQl(): User =
     User(id = id, username = username, displayName = displayName, status = status, avatarMediaId = avatarMediaId)
 

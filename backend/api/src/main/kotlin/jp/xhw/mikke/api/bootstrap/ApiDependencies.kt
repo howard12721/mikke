@@ -113,6 +113,12 @@ private object UnavailableUserGateway : UserGateway {
         avatarMediaId: String?,
     ): CurrentUser = unavailableFeature()
 
+    override suspend fun changePassword(
+        context: ApiRequestContext,
+        currentPassword: String,
+        newPassword: String,
+    ): Unit = unavailableFeature()
+
     override fun close() = Unit
 }
 
