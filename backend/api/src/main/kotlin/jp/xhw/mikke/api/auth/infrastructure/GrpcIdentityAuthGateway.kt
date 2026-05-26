@@ -1,19 +1,14 @@
 package jp.xhw.mikke.api.auth.infrastructure
 
-import com.google.protobuf.Timestamp
 import io.grpc.ManagedChannel
-import io.grpc.Status
 import jp.xhw.mikke.api.auth.application.*
 import jp.xhw.mikke.api.auth.application.AuthSession
-import jp.xhw.mikke.api.http.ApiErrorCode
-import jp.xhw.mikke.api.http.ApiHttpException
+import jp.xhw.mikke.api.infrastructure.closeChannel
+import jp.xhw.mikke.api.infrastructure.gatewayChannelFromEnvironment
+import jp.xhw.mikke.api.infrastructure.grpcGatewayCall
+import jp.xhw.mikke.api.infrastructure.toIsoString
 import jp.xhw.mikke.identity.v1.*
-import jp.xhw.mikke.platform.grpc.grpcClientChannelFromEnvironment
-import java.net.ConnectException
-import java.net.SocketTimeoutException
-import java.nio.channels.ClosedChannelException
-import java.util.concurrent.TimeoutException
-import kotlin.time.Instant
+import jp.xhw.mikke.identity.v1.AuthSession as ProtoAuthSession
 
 class GrpcIdentityAuthGateway(
     private val channel: ManagedChannel,
@@ -23,51 +18,39 @@ class GrpcIdentityAuthGateway(
         ),
 ) : IdentityAuthGateway {
     override suspend fun login(command: LoginCommand): LoginResult =
-        try {
+        grpcGatewayCall {
             stub.loginUser(command.toRequestModel()).toLoginResult()
-        } catch (e: Exception) {
-            throw e.toApiHttpException()
         }
 
     override suspend fun register(command: RegisterCommand): RegisterResult =
-        try {
+        grpcGatewayCall {
             stub.registerUser(command.toRequestModel()).toRegisterResult()
-        } catch (e: Exception) {
-            throw e.toApiHttpException()
         }
 
     override suspend fun refresh(command: RefreshCommand): RefreshResult =
-        try {
+        grpcGatewayCall {
             stub.refreshSession(command.toRequestModel()).toRefreshResult()
-        } catch (e: Exception) {
-            throw e.toApiHttpException()
         }
 
     override suspend fun logout(command: LogoutCommand) {
-        try {
+        grpcGatewayCall {
             stub.logoutSession(command.toRequestModel())
-        } catch (e: Exception) {
-            throw e.toApiHttpException()
         }
     }
 
-    override fun close() {
-        channel.shutdown()
-    }
+    override fun close() = closeChannel(channel)
 
     companion object {
-        fun fromEnvironment(): GrpcIdentityAuthGateway {
-            val channel =
-                grpcClientChannelFromEnvironment(
-                    targetEnv = "IDENTITY_SERVICE_TARGET",
-                    hostEnv = "IDENTITY_SERVICE_HOST",
-                    portEnv = "IDENTITY_SERVICE_PORT",
-                    defaultHost = "localhost",
-                    defaultPort = 50051,
-                )
-
-            return GrpcIdentityAuthGateway(channel = channel)
-        }
+        fun fromEnvironment(): GrpcIdentityAuthGateway =
+            GrpcIdentityAuthGateway(
+                channel =
+                    gatewayChannelFromEnvironment(
+                        targetEnv = "IDENTITY_SERVICE_TARGET",
+                        hostEnv = "IDENTITY_SERVICE_HOST",
+                        portEnv = "IDENTITY_SERVICE_PORT",
+                        defaultPort = 50051,
+                    ),
+            )
     }
 }
 
@@ -80,23 +63,8 @@ private fun LoginCommand.toRequestModel(): LoginUserRequest =
 
 private fun LoginUserResponse.toLoginResult(): LoginResult =
     LoginResult(
-        user =
-            AuthenticatedUser(
-                id = user.id,
-                email = user.email,
-                username = user.username,
-                displayName = user.displayName,
-                status = user.status.toApiStatus(),
-                createdAt = user.createdAt.toInstantString(),
-                updatedAt = user.updatedAt.toInstantString(),
-            ),
-        session =
-            AuthSession(
-                accessToken = session.accessToken,
-                refreshToken = session.refreshToken,
-                accessTokenExpiresAt = session.accessTokenExpiresAt.toInstantString(),
-                refreshTokenExpiresAt = session.refreshTokenExpiresAt.toInstantString(),
-            ),
+        user = user.toAuthenticatedUser(),
+        session = session.toAuthSession(),
     )
 
 private fun RegisterCommand.toRequestModel(): RegisterUserRequest =
@@ -110,23 +78,8 @@ private fun RegisterCommand.toRequestModel(): RegisterUserRequest =
 
 private fun RegisterUserResponse.toRegisterResult(): RegisterResult =
     RegisterResult(
-        user =
-            AuthenticatedUser(
-                id = user.id,
-                email = user.email,
-                username = user.username,
-                displayName = user.displayName,
-                status = user.status.toApiStatus(),
-                createdAt = user.createdAt.toInstantString(),
-                updatedAt = user.updatedAt.toInstantString(),
-            ),
-        session =
-            AuthSession(
-                accessToken = session.accessToken,
-                refreshToken = session.refreshToken,
-                accessTokenExpiresAt = session.accessTokenExpiresAt.toInstantString(),
-                refreshTokenExpiresAt = session.refreshTokenExpiresAt.toInstantString(),
-            ),
+        user = user.toAuthenticatedUser(),
+        session = session.toAuthSession(),
     )
 
 private fun RefreshCommand.toRequestModel(): RefreshSessionRequest =
@@ -137,13 +90,7 @@ private fun RefreshCommand.toRequestModel(): RefreshSessionRequest =
 
 private fun RefreshSessionResponse.toRefreshResult(): RefreshResult =
     RefreshResult(
-        session =
-            AuthSession(
-                accessToken = session.accessToken,
-                refreshToken = session.refreshToken,
-                accessTokenExpiresAt = session.accessTokenExpiresAt.toInstantString(),
-                refreshTokenExpiresAt = session.refreshTokenExpiresAt.toInstantString(),
-            ),
+        session = session.toAuthSession(),
     )
 
 private fun LogoutCommand.toRequestModel(): LogoutSessionRequest =
@@ -152,7 +99,24 @@ private fun LogoutCommand.toRequestModel(): LogoutSessionRequest =
         .setRefreshToken(refreshToken)
         .build()
 
-private fun Timestamp.toInstantString(): String = Instant.fromEpochSeconds(seconds, nanos.toLong()).toString()
+private fun User.toAuthenticatedUser(): AuthenticatedUser =
+    AuthenticatedUser(
+        id = id,
+        email = email,
+        username = username,
+        displayName = displayName,
+        status = status.toApiStatus(),
+        createdAt = createdAt.toIsoString(),
+        updatedAt = updatedAt.toIsoString(),
+    )
+
+private fun ProtoAuthSession.toAuthSession(): AuthSession =
+    AuthSession(
+        accessToken = accessToken,
+        refreshToken = refreshToken,
+        accessTokenExpiresAt = accessTokenExpiresAt.toIsoString(),
+        refreshTokenExpiresAt = refreshTokenExpiresAt.toIsoString(),
+    )
 
 private fun UserStatus.toApiStatus(): String =
     when (this) {
@@ -165,47 +129,4 @@ private fun UserStatus.toApiStatus(): String =
         UserStatus.USER_STATUS_UNSPECIFIED,
         UserStatus.UNRECOGNIZED,
         -> "unspecified"
-    }
-
-private fun Exception.toApiHttpException(): ApiHttpException {
-    val status = Status.fromThrowable(this)
-    val errorCode = status.toApiErrorCode(rootCause())
-
-    return ApiHttpException(
-        status = errorCode.status,
-        message = status.description ?: defaultUpstreamErrorMessage(errorCode),
-    )
-}
-
-private fun Status.toApiErrorCode(rootCause: Throwable?): ApiErrorCode =
-    when {
-        code == Status.Code.INVALID_ARGUMENT -> ApiErrorCode.InvalidRequest
-        code == Status.Code.UNAUTHENTICATED -> ApiErrorCode.Unauthenticated
-        code == Status.Code.NOT_FOUND -> ApiErrorCode.NotFound
-        code == Status.Code.ALREADY_EXISTS -> ApiErrorCode.Conflict
-        code == Status.Code.DEADLINE_EXCEEDED -> ApiErrorCode.UpstreamTimeout
-        code == Status.Code.UNAVAILABLE -> ApiErrorCode.UpstreamUnavailable
-        rootCause is SocketTimeoutException || rootCause is TimeoutException -> ApiErrorCode.UpstreamTimeout
-        rootCause is ConnectException || rootCause is ClosedChannelException -> ApiErrorCode.UpstreamUnavailable
-        else -> ApiErrorCode.UpstreamFailure
-    }
-
-private fun Exception.rootCause(): Throwable {
-    var current: Throwable = this
-    while (current.cause != null) {
-        current = current.cause!!
-    }
-    return current
-}
-
-private fun defaultUpstreamErrorMessage(errorCode: ApiErrorCode): String =
-    when (errorCode) {
-        ApiErrorCode.UpstreamUnavailable -> "Backend service is unavailable"
-        ApiErrorCode.UpstreamTimeout -> "Backend service request timed out"
-        ApiErrorCode.UpstreamFailure -> "Backend service request failed"
-        ApiErrorCode.InvalidRequest -> "Invalid request"
-        ApiErrorCode.Unauthenticated -> "Authentication failed"
-        ApiErrorCode.NotFound -> "Resource not found"
-        ApiErrorCode.Conflict -> "Conflict"
-        ApiErrorCode.InternalError -> "Internal server error"
     }

@@ -179,15 +179,15 @@ class GuessServiceRpc(
 
     override suspend fun listPostRankings(request: ListPostRankingsRequest): ListPostRankingsResponse {
         requireAuthenticatedUserId()
-        val page =
-            PageRequestInput(
-                pageSize = request.page.pageSize,
-                pageToken = request.page.pageToken,
-            ).validateOffset()
-        val offset = page.cursor?.offset ?: 0
-
         val slice =
             mapRpcExceptions {
+                val page =
+                    PageRequestInput(
+                        pageSize = request.page.pageSize,
+                        pageToken = request.page.pageToken,
+                    ).validateOffset()
+                val offset = page.cursor?.offset ?: 0
+
                 guessService.listPostRankings(limit = page.limit, offset = offset)
             }
 
@@ -205,16 +205,16 @@ class GuessServiceRpc(
 
     override suspend fun listGuessRankings(request: ListGuessRankingsRequest): ListGuessRankingsResponse {
         requireAuthenticatedUserId()
-        val metric = request.metric.toDomain()
-        val page =
-            PageRequestInput(
-                pageSize = request.page.pageSize,
-                pageToken = request.page.pageToken,
-            ).validateOffset()
-        val offset = page.cursor?.offset ?: 0
-
         val slice =
             mapRpcExceptions {
+                val metric = request.metric.toDomain()
+                val page =
+                    PageRequestInput(
+                        pageSize = request.page.pageSize,
+                        pageToken = request.page.pageToken,
+                    ).validateOffset()
+                val offset = page.cursor?.offset ?: 0
+
                 guessService.listGuessRankings(metric = metric, limit = page.limit, offset = offset)
             }
 

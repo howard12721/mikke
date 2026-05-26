@@ -45,7 +45,6 @@ class ExposedGuessUserStatsRepository(
         val submittedDistance = doubleLiteral(distanceMeters)
 
         GuessUserStatsTable.upsert(
-            GuessUserStatsTable.userId,
             onUpdate = { statement ->
                 statement[GuessUserStatsTable.guessCount] = GuessUserStatsTable.guessCount + 1L
                 statement[GuessUserStatsTable.totalScore] =

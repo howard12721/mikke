@@ -1,0 +1,106 @@
+package jp.xhw.mikke.api.post.application
+
+import jp.xhw.mikke.api.common.application.*
+import jp.xhw.mikke.api.graphql.ApiRequestContext
+import jp.xhw.mikke.api.guess.application.GuessGateway
+import jp.xhw.mikke.api.media.application.MediaGateway
+import jp.xhw.mikke.api.user.application.UserGateway
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+
+class PostApiService(
+    private val postGateway: PostGateway,
+    private val mediaGateway: MediaGateway,
+    private val userGateway: UserGateway,
+    private val guessGateway: GuessGateway,
+) {
+    suspend fun createPost(
+        context: ApiRequestContext,
+        mediaId: String,
+        caption: String?,
+        visibility: String,
+        location: GeoPoint,
+        accuracyMeters: Double,
+    ): Post =
+        postGateway.createPost(
+            context = context,
+            mediaId = mediaId.requireText("mediaId"),
+            caption = caption?.trim()?.takeIf { it.isNotEmpty() },
+            visibility = visibility,
+            location = location,
+            accuracyMeters = accuracyMeters,
+        )
+
+    suspend fun postDetail(
+        context: ApiRequestContext,
+        postId: String,
+    ): TimelineItem {
+        val post = postGateway.getPost(context, postId.requireText("postId"))
+        return coroutineScope {
+            val media = async { mediaGateway.getMedia(context, post.mediaId) }
+            val author = async { userGateway.getUser(context, post.authorUserId) }
+            val guessResult = async { guessGateway.getMyGuessForPost(context, post.id) }
+
+            TimelineItem(
+                post = post,
+                author = author.await(),
+                media = media.await(),
+                myGuessResult = guessResult.await(),
+            )
+        }
+    }
+
+    suspend fun myPosts(
+        context: ApiRequestContext,
+        page: PageInput,
+    ): PageResult<Post> = postGateway.listMyPosts(context, page.normalized())
+
+    suspend fun timeline(
+        context: ApiRequestContext,
+        page: PageInput,
+    ): PageResult<TimelineItem> {
+        val posts = postGateway.listVisiblePosts(context, page.normalized())
+        val mediaById =
+            mediaGateway
+                .batchGetMedia(context, posts.items.map { it.mediaId }.distinct())
+                .associateBy { it.id }
+        val usersById =
+            userGateway
+                .batchGetUsers(context, posts.items.map { it.authorUserId }.distinct())
+                .associateBy { it.id }
+        val guessesByPostId =
+            guessGateway
+                .batchGetMyGuessesForPosts(context, posts.items.map { it.id })
+                .associateBy { it.guess.postId }
+
+        return PageResult(
+            items =
+                posts.items.map { post ->
+                    TimelineItem(
+                        post = post,
+                        author = usersById[post.authorUserId],
+                        media = mediaById[post.mediaId],
+                        myGuessResult = guessesByPostId[post.id],
+                    )
+                },
+            pageInfo = posts.pageInfo,
+        )
+    }
+
+    suspend fun updateCaption(
+        context: ApiRequestContext,
+        postId: String,
+        caption: String,
+    ): Post = postGateway.updateCaption(context, postId.requireText("postId"), caption.trim())
+
+    suspend fun updateVisibility(
+        context: ApiRequestContext,
+        postId: String,
+        visibility: String,
+    ): Post = postGateway.updateVisibility(context, postId.requireText("postId"), visibility)
+
+    suspend fun deletePost(
+        context: ApiRequestContext,
+        postId: String,
+    ) = postGateway.deletePost(context, postId.requireText("postId"))
+}
