@@ -453,6 +453,19 @@ private class RecordingIdentityUserRepository :
         return true
     }
 
+    override fun changePassword(
+        userId: UserId,
+        passwordHash: PasswordHash,
+        updatedAt: Instant,
+    ): Boolean {
+        val current = savedUser ?: return false
+        if (current.id != userId) {
+            return false
+        }
+        savedUser = current.copy(passwordHash = passwordHash, updatedAt = updatedAt)
+        return true
+    }
+
     override fun appendUserCreated(user: IdentityUser) = outbox.appendUserCreated(user)
 
     override fun appendProfileUpdated(user: IdentityUser) = outbox.appendProfileUpdated(user)
@@ -461,6 +474,11 @@ private class RecordingIdentityUserRepository :
         userId: UserId,
         deactivatedAt: Instant,
     ) = outbox.appendUserDeactivated(userId, deactivatedAt)
+
+    override fun appendPasswordChanged(
+        userId: UserId,
+        updatedAt: Instant,
+    ) = outbox.appendPasswordChanged(userId, updatedAt)
 
     fun seedSearchUsers(users: List<IdentityUser>) {
         searchUsers = users
@@ -520,6 +538,21 @@ private class RecordingIdentityUserOutbox : IdentityUserOutbox {
                 aggregateId = userId.value,
                 payloadJson = """{"user_id":"${userId.value}"}""",
                 createdAt = deactivatedAt,
+            )
+    }
+
+    override fun appendPasswordChanged(
+        userId: UserId,
+        updatedAt: Instant,
+    ) {
+        entries +=
+            OutboxEntry(
+                id = Uuid.random(),
+                eventType = UserEventTypes.PASSWORD_CHANGED,
+                aggregateType = "user",
+                aggregateId = userId.value,
+                payloadJson = """{"user_id":"${userId.value}"}""",
+                createdAt = updatedAt,
             )
     }
 }

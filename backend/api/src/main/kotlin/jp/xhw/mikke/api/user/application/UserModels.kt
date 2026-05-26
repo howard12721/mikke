@@ -48,4 +48,10 @@ interface UserGateway : AutoCloseable {
         displayName: String?,
         avatarMediaId: String?,
     ): CurrentUser
+
+    suspend fun changePassword(
+        context: ApiRequestContext,
+        currentPassword: String,
+        newPassword: String,
+    )
 }

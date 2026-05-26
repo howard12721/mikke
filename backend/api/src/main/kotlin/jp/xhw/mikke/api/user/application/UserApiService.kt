@@ -34,4 +34,16 @@ class UserApiService(
             displayName = displayName?.trim()?.takeIf { it.isNotEmpty() },
             avatarMediaId = avatarMediaId?.trim()?.takeIf { it.isNotEmpty() },
         )
+
+    suspend fun changePassword(
+        context: ApiRequestContext,
+        currentPassword: String,
+        newPassword: String,
+    ) {
+        userGateway.changePassword(
+            context,
+            currentPassword.requireText("currentPassword"),
+            newPassword.requireText("newPassword"),
+        )
+    }
 }

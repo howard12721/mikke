@@ -26,4 +26,10 @@ interface IdentityUserRepository {
         deactivatedAt: Instant,
         updatedAt: Instant,
     ): Boolean
+
+    fun changePassword(
+        userId: UserId,
+        passwordHash: PasswordHash,
+        updatedAt: Instant,
+    ): Boolean
 }

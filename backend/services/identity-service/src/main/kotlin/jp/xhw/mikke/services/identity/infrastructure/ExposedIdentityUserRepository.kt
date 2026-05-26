@@ -155,6 +155,18 @@ class ExposedIdentityUserRepository : IdentityUserRepository {
             row[IdentityUsersTable.deactivatedAt] = deactivatedAt.toJavaInstant()
             row[IdentityUsersTable.updatedAt] = updatedAt.toJavaInstant()
         } > 0
+
+    override fun changePassword(
+        userId: UserId,
+        passwordHash: PasswordHash,
+        updatedAt: Instant,
+    ): Boolean =
+        IdentityUsersTable.update({ IdentityUsersTable.id eq userId.value }) { row ->
+            row[IdentityUsersTable.passwordHashIterations] = passwordHash.iterations
+            row[IdentityUsersTable.passwordHash] = passwordHash.hash
+            row[IdentityUsersTable.passwordSalt] = passwordHash.salt
+            row[IdentityUsersTable.updatedAt] = updatedAt.toJavaInstant()
+        } > 0
 }
 
 private object IdentityUsersTable : Table("identity_users") {

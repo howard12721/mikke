@@ -26,3 +26,8 @@ data class AuthenticatedIdentityUser(
     val user: IdentityUser,
     val session: IssuedAuthSession,
 )
+
+data class ChangePasswordCommand(
+    val currentPassword: String,
+    val newPassword: String,
+)
