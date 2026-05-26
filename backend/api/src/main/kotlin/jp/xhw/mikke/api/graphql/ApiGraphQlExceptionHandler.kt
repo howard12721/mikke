@@ -68,6 +68,7 @@ private val ApiErrorCode.graphQlCode: String
         when (this) {
             ApiErrorCode.InvalidRequest -> "INVALID_REQUEST"
             ApiErrorCode.Unauthenticated -> "UNAUTHENTICATED"
+            ApiErrorCode.Forbidden -> "FORBIDDEN"
             ApiErrorCode.NotFound -> "NOT_FOUND"
             ApiErrorCode.Conflict -> "CONFLICT"
             ApiErrorCode.UpstreamUnavailable -> "UPSTREAM_UNAVAILABLE"

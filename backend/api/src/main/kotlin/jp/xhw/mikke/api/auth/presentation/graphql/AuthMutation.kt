@@ -1,11 +1,7 @@
 package jp.xhw.mikke.api.auth.presentation.graphql
 
 import com.expediagroup.graphql.server.operations.Mutation
-import jp.xhw.mikke.api.auth.application.AuthApiService
-import jp.xhw.mikke.api.auth.application.LoginCommand
-import jp.xhw.mikke.api.auth.application.LogoutCommand
-import jp.xhw.mikke.api.auth.application.RefreshCommand
-import jp.xhw.mikke.api.auth.application.RegisterCommand
+import jp.xhw.mikke.api.auth.application.*
 
 class AuthMutation(
     private val authApiService: AuthApiService,
