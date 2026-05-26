@@ -406,6 +406,19 @@ private open class RecordingIdentityUserRepository(
             )
         return true
     }
+
+    override fun changePassword(
+        userId: UserId,
+        passwordHash: PasswordHash,
+        updatedAt: Instant,
+    ): Boolean {
+        val current = savedUser ?: return false
+        if (current.id != userId) {
+            return false
+        }
+        savedUser = current.copy(passwordHash = passwordHash, updatedAt = updatedAt)
+        return true
+    }
 }
 
 private class ThrowingIdentityUserRepository : RecordingIdentityUserRepository() {
@@ -428,6 +441,13 @@ private class RecordingIdentityUserOutbox : IdentityUserOutbox {
         deactivatedAt: Instant,
     ) {
         entries += outboxEntry(userId.value, deactivatedAt)
+    }
+
+    override fun appendPasswordChanged(
+        userId: UserId,
+        updatedAt: Instant,
+    ) {
+        entries += outboxEntry(userId.value, updatedAt)
     }
 
     private fun outboxEntry(

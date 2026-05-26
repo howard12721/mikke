@@ -13,4 +13,9 @@ interface IdentityUserOutbox {
         userId: UserId,
         deactivatedAt: Instant,
     )
+
+    fun appendPasswordChanged(
+        userId: UserId,
+        updatedAt: Instant,
+    )
 }

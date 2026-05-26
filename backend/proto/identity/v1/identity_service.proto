@@ -40,6 +40,9 @@ service IdentityService {
 
   // Deactivates the current authenticated user.
   rpc DeactivateAccount(DeactivateAccountRequest) returns (DeactivateAccountResponse);
+
+  // Changes the current authenticated user's password.
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
 }
 
 message RegisterUserRequest {
@@ -124,6 +127,13 @@ message UpdateProfileResponse {
 message DeactivateAccountRequest {}
 
 message DeactivateAccountResponse {}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+
+message ChangePasswordResponse {}
 
 message User {
   string id = 1;

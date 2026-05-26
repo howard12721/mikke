@@ -7,6 +7,7 @@ import jp.xhw.mikke.platform.grpc.currentAuthenticatedUser
 import jp.xhw.mikke.platform.grpc.withGrpcExceptionMapping
 import jp.xhw.mikke.platform.pagination.PageRequestInput
 import jp.xhw.mikke.platform.pagination.validate
+import jp.xhw.mikke.services.identity.application.command.ChangePasswordCommand
 import jp.xhw.mikke.services.identity.application.command.LoginIdentityUserCommand
 import jp.xhw.mikke.services.identity.application.command.RegisterIdentityUserCommand
 import jp.xhw.mikke.services.identity.application.command.UpdateProfileCommand
@@ -161,6 +162,20 @@ class IdentityServiceRpc(
             identityService.deactivateAccount(currentAuthenticatedUser().toString())
 
             DeactivateAccountResponse.getDefaultInstance()
+        }
+
+    override suspend fun changePassword(request: ChangePasswordRequest): ChangePasswordResponse =
+        mapRpcExceptions {
+            identityService.changePassword(
+                subject = currentAuthenticatedUser().toString(),
+                command =
+                    ChangePasswordCommand(
+                        currentPassword = request.currentPassword.requireField("current_password"),
+                        newPassword = request.newPassword.requireField("new_password"),
+                    ),
+            )
+
+            ChangePasswordResponse.getDefaultInstance()
         }
 }
 

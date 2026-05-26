@@ -8,10 +8,7 @@ import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
 import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.pagination.PageSlice
 import jp.xhw.mikke.platform.pagination.ValidatedPageRequest
-import jp.xhw.mikke.services.identity.application.command.AuthenticatedIdentityUser
-import jp.xhw.mikke.services.identity.application.command.LoginIdentityUserCommand
-import jp.xhw.mikke.services.identity.application.command.RegisterIdentityUserCommand
-import jp.xhw.mikke.services.identity.application.command.UpdateProfileCommand
+import jp.xhw.mikke.services.identity.application.command.*
 import jp.xhw.mikke.services.identity.application.exception.InvalidCredentialsException
 import jp.xhw.mikke.services.identity.application.exception.InvalidIdentityInputException
 import jp.xhw.mikke.services.identity.application.exception.InvalidRefreshTokenException
@@ -280,6 +277,48 @@ class IdentityService(
 
             refreshSessionRepository.revokeAllForUser(userId, now)
             userOutbox.appendUserDeactivated(userId, now)
+        }
+    }
+
+    fun changePassword(
+        subject: String,
+        command: ChangePasswordCommand,
+    ) {
+        if (command.newPassword == command.currentPassword) {
+            throw InvalidIdentityInputException("new_password must be different from current_password")
+        }
+
+        transactionRunner.runInTransaction {
+            val userId =
+                subject.toUserIdOrNull()
+                    ?: throw UserNotFoundException()
+
+            val current =
+                userRepository.findByIds(listOf(userId)).firstOrNull()
+                    ?: throw UserNotFoundException()
+
+            if (!current.canAuthenticate()) {
+                throw UserNotFoundException()
+            }
+
+            if (!passwordHasher.verify(command.currentPassword, current.passwordHash)) {
+                throw InvalidCredentialsException()
+            }
+
+            PasswordPolicy.validate(command.newPassword)
+
+            val newPasswordHash = passwordHasher.hash(command.newPassword)
+            val now = clock.now()
+
+            userRepository.changePassword(
+                userId = userId,
+                passwordHash = newPasswordHash,
+                updatedAt = now,
+            )
+
+            refreshSessionRepository.revokeAllForUser(userId, now)
+
+            userOutbox.appendPasswordChanged(userId, now)
         }
     }
 

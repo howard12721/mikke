@@ -67,6 +67,23 @@ class ExposedIdentityUserOutbox(
         )
     }
 
+    override fun appendPasswordChanged(
+        userId: UserId,
+        updatedAt: Instant,
+    ) {
+        val payload =
+            PasswordChangedPayload(
+                userId = formatGrpcUuid(userId.value),
+                updatedAt = updatedAt.toString(),
+            )
+
+        insert(
+            eventType = UserEventTypes.PASSWORD_CHANGED,
+            aggregateId = userId.value,
+            payloadJson = json.encodeToString(payload),
+        )
+    }
+
     private fun insert(
         eventType: String,
         aggregateId: Uuid,
@@ -112,4 +129,10 @@ private data class UserProfileUpdatedPayload(
 private data class UserDeactivatedPayload(
     @SerialName("user_id") val userId: String,
     @SerialName("deactivated_at") val deactivatedAt: String,
+)
+
+@Serializable
+private data class PasswordChangedPayload(
+    @SerialName("user_id") val userId: String,
+    @SerialName("updated_at") val updatedAt: String,
 )
