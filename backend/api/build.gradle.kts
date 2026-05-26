@@ -24,6 +24,10 @@ tasks.register<JavaExec>("generateGraphQlSchema") {
 dependencies {
     implementation(project(":platform"))
     implementation(project(":services:identity-service"))
+    implementation(project(":services:media-service"))
+    implementation(project(":services:post-service"))
+    implementation(project(":services:friendship-service"))
+    implementation(project(":services:guess-service"))
 
     implementation(libs.bundles.ktor.server)
     implementation(libs.graphql.kotlin.ktor.server)

@@ -47,6 +47,7 @@ enum class ApiErrorCode(
 ) {
     InvalidRequest(HttpStatusCode.BadRequest),
     Unauthenticated(HttpStatusCode.Unauthorized),
+    Forbidden(HttpStatusCode.Forbidden),
     NotFound(HttpStatusCode.NotFound),
     Conflict(HttpStatusCode.Conflict),
     UpstreamUnavailable(HttpStatusCode.ServiceUnavailable),

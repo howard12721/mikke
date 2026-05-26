@@ -25,7 +25,6 @@ class ExposedPostAuthorStatsRepository(
     override fun incrementPostCount(userId: UserId) {
         val now = clock.now()
         PostAuthorStatsTable.upsert(
-            PostAuthorStatsTable.userId,
             onUpdate = { statement ->
                 statement[PostAuthorStatsTable.postCount] = PostAuthorStatsTable.postCount + 1L
                 statement[PostAuthorStatsTable.updatedAt] = now.toJavaInstant()
@@ -40,7 +39,6 @@ class ExposedPostAuthorStatsRepository(
     override fun decrementPostCount(userId: UserId) {
         val now = clock.now()
         PostAuthorStatsTable.upsert(
-            PostAuthorStatsTable.userId,
             onUpdate = { statement ->
                 statement[PostAuthorStatsTable.postCount] =
                     CustomFunction(
