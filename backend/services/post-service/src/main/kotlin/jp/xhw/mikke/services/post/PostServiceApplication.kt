@@ -66,7 +66,9 @@ fun main() {
             visibilityAuthorizer = GrpcPostVisibilityAuthorizer(friendshipStub),
             userStatusChecker =
                 GrpcPostUserStatusChecker(
-                    IdentityServiceGrpcKt.IdentityServiceCoroutineStub(identityChannel),
+                    IdentityServiceGrpcKt
+                        .IdentityServiceCoroutineStub(identityChannel)
+                        .withInterceptors(InternalCallerClientInterceptor(serviceName = "post-service")),
                 ),
             transactionRunner = transactionRunner,
         )

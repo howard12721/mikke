@@ -13,7 +13,6 @@ fun identityGrpcAuthPolicies(): Map<String, GrpcEndpointAuthPolicy> {
             IdentityServiceGrpc.getLogoutSessionMethod(),
             IdentityServiceGrpc.getGetMeMethod(),
             IdentityServiceGrpc.getGetUserMethod(),
-            IdentityServiceGrpc.getBatchGetUsersMethod(),
             IdentityServiceGrpc.getSearchUsersMethod(),
             IdentityServiceGrpc.getUpdateProfileMethod(),
             IdentityServiceGrpc.getDeactivateAccountMethod(),
@@ -22,6 +21,8 @@ fun identityGrpcAuthPolicies(): Map<String, GrpcEndpointAuthPolicy> {
 
     return internalRequired +
         mapOf(
+            IdentityServiceGrpc.getBatchGetUsersMethod().fullMethodName to
+                GrpcEndpointAuthPolicy.internalRequired("api", "post-service"),
             HealthGrpc.getCheckMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
             HealthGrpc.getWatchMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
         )
