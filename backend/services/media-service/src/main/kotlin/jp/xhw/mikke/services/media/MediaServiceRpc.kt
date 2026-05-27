@@ -2,7 +2,7 @@ package jp.xhw.mikke.services.media
 
 import io.grpc.Status
 import jp.xhw.mikke.media.v1.*
-import jp.xhw.mikke.platform.grpc.currentAuthenticatedUser
+import jp.xhw.mikke.platform.grpc.requireUserUuid
 import jp.xhw.mikke.platform.grpc.withGrpcExceptionMapping
 import jp.xhw.mikke.platform.time.toProtoTimestamp
 import jp.xhw.mikke.services.media.application.*
@@ -15,7 +15,7 @@ class MediaServiceRpc(
     private val mediaService: MediaService,
 ) : MediaServiceGrpcKt.MediaServiceCoroutineImplBase() {
     override suspend fun createUploadUrl(request: CreateUploadUrlRequest): CreateUploadUrlResponse {
-        val uploaderUserId = UploaderUserId(currentAuthenticatedUser())
+        val uploaderUserId = UploaderUserId(request.actor.requireUserUuid())
         val result =
             mapRpcExceptions {
                 mediaService.createUploadUrl(
@@ -40,7 +40,7 @@ class MediaServiceRpc(
     }
 
     override suspend fun checkUpload(request: CheckUploadRequest): CheckUploadResponse {
-        val requesterUserId = UploaderUserId(currentAuthenticatedUser())
+        val requesterUserId = UploaderUserId(request.actor.requireUserUuid())
         val result =
             mapRpcExceptions {
                 mediaService.checkUpload(
@@ -90,7 +90,7 @@ class MediaServiceRpc(
     }
 
     override suspend fun deleteMedia(request: DeleteMediaRequest): DeleteMediaResponse {
-        val requesterUserId = UploaderUserId(currentAuthenticatedUser())
+        val requesterUserId = UploaderUserId(request.actor.requireUserUuid())
         mapRpcExceptions {
             mediaService.deleteMedia(
                 mediaId = parseMediaId(request.mediaId.requireField("media_id")),

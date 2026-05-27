@@ -6,32 +6,16 @@ import jp.xhw.mikke.events.media.MediaUploadCompletedPayload
 import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.events.ProcessedEventStore
 import jp.xhw.mikke.platform.uuid.formatGrpcUuid
-import jp.xhw.mikke.services.media.application.MediaRepository
-import jp.xhw.mikke.services.media.application.ObjectStorageClient
-import jp.xhw.mikke.services.media.application.ObjectTooLargeException
-import jp.xhw.mikke.services.media.application.PresignedDownload
-import jp.xhw.mikke.services.media.application.PresignedUpload
-import jp.xhw.mikke.services.media.application.StoredObject
-import jp.xhw.mikke.services.media.application.StoredObjectMetadata
+import jp.xhw.mikke.services.media.application.*
 import jp.xhw.mikke.services.media.application.port.MediaOutbox
-import jp.xhw.mikke.services.media.model.MediaId
-import jp.xhw.mikke.services.media.model.MediaRecord
-import jp.xhw.mikke.services.media.model.MediaStatus
-import jp.xhw.mikke.services.media.model.MediaVariantId
-import jp.xhw.mikke.services.media.model.MediaVariantKind
-import jp.xhw.mikke.services.media.model.MediaVariantRecord
-import jp.xhw.mikke.services.media.model.MediaVariantStatus
-import jp.xhw.mikke.services.media.model.UploadMethod
-import jp.xhw.mikke.services.media.model.UploaderUserId
+import jp.xhw.mikke.services.media.model.*
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.SchemaUtils
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -195,7 +179,14 @@ class MediaUploadCompletedHandlerTest {
         repository: InMemoryMediaRepository,
         objectStorage: FakeObjectStorageClient,
         mediaOutbox: RecordingMediaOutbox = RecordingMediaOutbox(),
-        thumbnailGenerator: ThumbnailGenerator = ThumbnailGenerator { _, _ -> GeneratedThumbnail(byteArrayOf(9), width = 4, height = 4) },
+        thumbnailGenerator: ThumbnailGenerator =
+            ThumbnailGenerator { _, _ ->
+                GeneratedThumbnail(
+                    byteArrayOf(9),
+                    width = 4,
+                    height = 4,
+                )
+            },
         maxOriginalBytes: Long = 1_024,
     ): MediaUploadCompletedHandler =
         MediaUploadCompletedHandler(
@@ -404,7 +395,7 @@ private class FakeObjectStorageClient(
         expiresIn: kotlin.time.Duration,
     ): PresignedDownload = error("not used")
 
-    override fun headObject(objectKey: String): StoredObjectMetadata? = error("not used")
+    override fun headObject(objectKey: String): StoredObjectMetadata = error("not used")
 
     override fun getObject(
         objectKey: String,

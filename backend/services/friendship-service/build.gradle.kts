@@ -38,3 +38,7 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
+
+tasks.named<Test>("test") {
+    environment("MIKKE_INTERNAL_RPC_TOKEN", "test-internal-rpc-token")
+}

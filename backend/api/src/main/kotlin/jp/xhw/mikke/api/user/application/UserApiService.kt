@@ -1,16 +1,16 @@
 package jp.xhw.mikke.api.user.application
 
-import jp.xhw.mikke.api.common.application.PageInput
-import jp.xhw.mikke.api.common.application.PageResult
-import jp.xhw.mikke.api.common.application.normalized
-import jp.xhw.mikke.api.common.application.requireText
-import jp.xhw.mikke.api.common.application.requireUuidText
+import jp.xhw.mikke.api.common.application.*
 import jp.xhw.mikke.api.graphql.ApiRequestContext
+import jp.xhw.mikke.api.graphql.requireAuthenticatedActor
 
 class UserApiService(
     private val userGateway: UserGateway,
 ) {
-    suspend fun me(context: ApiRequestContext): CurrentUser = userGateway.me(context)
+    suspend fun me(context: ApiRequestContext): CurrentUser {
+        context.requireAuthenticatedActor()
+        return userGateway.me(context)
+    }
 
     suspend fun getUser(
         context: ApiRequestContext,
@@ -46,19 +46,22 @@ class UserApiService(
         username: String?,
         displayName: String?,
         avatarMediaId: String?,
-    ): CurrentUser =
-        userGateway.updateProfile(
+    ): CurrentUser {
+        context.requireAuthenticatedActor()
+        return userGateway.updateProfile(
             context = context,
             username = username?.trim()?.takeIf { it.isNotEmpty() },
             displayName = displayName?.trim()?.takeIf { it.isNotEmpty() },
             avatarMediaId = avatarMediaId?.trim()?.takeIf { it.isNotEmpty() }?.requireUuidText("avatarMediaId"),
         )
+    }
 
     suspend fun changePassword(
         context: ApiRequestContext,
         currentPassword: String,
         newPassword: String,
     ) {
+        context.requireAuthenticatedActor()
         userGateway.changePassword(
             context,
             currentPassword.requireText("currentPassword"),

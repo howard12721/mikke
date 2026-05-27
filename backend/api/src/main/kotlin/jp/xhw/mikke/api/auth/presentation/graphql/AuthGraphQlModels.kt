@@ -12,19 +12,7 @@ data class RegisterInput(
     val password: String,
 )
 
-data class RefreshInput(
-    val refreshToken: String,
-)
-
-data class LogoutInput(
-    val refreshToken: String,
-)
-
 data class AuthPayload(
-    val session: AuthSession,
-)
-
-data class RefreshAuthPayload(
     val session: AuthSession,
 )
 
@@ -33,8 +21,7 @@ data class LogoutPayload(
 )
 
 data class AuthSession(
-    val accessToken: String,
-    val refreshToken: String,
-    val accessTokenExpiresAt: String,
-    val refreshTokenExpiresAt: String,
+    val sessionId: String,
+    val idleExpiresAt: String,
+    val absoluteExpiresAt: String,
 )

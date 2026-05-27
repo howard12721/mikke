@@ -1,7 +1,10 @@
 package jp.xhw.mikke.services.identity.application
 
 import jp.xhw.mikke.events.user.UserEventTypes
-import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
+import jp.xhw.mikke.platform.auth.session.SessionId
+import jp.xhw.mikke.platform.auth.session.SessionLifetime
+import jp.xhw.mikke.platform.auth.session.SessionRecord
+import jp.xhw.mikke.platform.auth.session.SessionRecordCodec
 import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.outbox.OutboxEntry
 import jp.xhw.mikke.platform.pagination.PageRequestInput
@@ -12,11 +15,10 @@ import jp.xhw.mikke.services.identity.application.command.RegisterIdentityUserCo
 import jp.xhw.mikke.services.identity.application.command.UpdateProfileCommand
 import jp.xhw.mikke.services.identity.application.exception.*
 import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
+import jp.xhw.mikke.services.identity.application.port.ClientSessionStore
 import jp.xhw.mikke.services.identity.application.port.IdentityUserOutbox
 import jp.xhw.mikke.services.identity.application.port.IdentityUserRepository
-import jp.xhw.mikke.services.identity.application.port.RefreshSessionRepository
 import jp.xhw.mikke.services.identity.application.security.PasswordHasher
-import jp.xhw.mikke.services.identity.application.security.RefreshSessionTokenService
 import jp.xhw.mikke.services.identity.application.service.IdentityService
 import jp.xhw.mikke.services.identity.model.*
 import kotlinx.serialization.json.Json
@@ -25,6 +27,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
@@ -32,7 +35,7 @@ class IdentityServiceTest {
     @Test
     fun `register rejects weak password`() {
         val repository = RecordingIdentityUserRepository()
-        val service = createService(repository)
+        val service = createService(repository, RecordingClientSessionStore())
 
         val exception =
             assertThrows(InvalidIdentityInputException::class.java) {
@@ -57,7 +60,7 @@ class IdentityServiceTest {
     @Test
     fun `register persists user and writes user created outbox`() {
         val repository = RecordingIdentityUserRepository()
-        val service = createService(repository)
+        val service = createService(repository, RecordingClientSessionStore())
 
         val result =
             service.register(
@@ -85,7 +88,7 @@ class IdentityServiceTest {
     fun `register duplicate email throws duplicate exception`() {
         val repository = RecordingIdentityUserRepository()
         repository.duplicateOnSave = true
-        val service = createService(repository)
+        val service = createService(repository, RecordingClientSessionStore())
 
         assertThrows(DuplicateIdentityUserException::class.java) {
             service.register(
@@ -100,15 +103,16 @@ class IdentityServiceTest {
     }
 
     @Test
-    fun `refresh rotates refresh session and invalidates previous token`() {
+    fun `register issues opaque session and writes redis state`() {
         val repository = RecordingIdentityUserRepository()
+        val sessionStore = RecordingClientSessionStore()
         val fixedClock =
             object : Clock {
                 override fun now(): Instant = Instant.parse("2026-04-23T00:00:00Z")
             }
-        val service = createService(repository, clock = fixedClock)
+        val service = createService(repository, sessionStore, clock = fixedClock)
 
-        val registered =
+        val result =
             service.register(
                 RegisterIdentityUserCommand(
                     email = "alice@example.com",
@@ -118,22 +122,117 @@ class IdentityServiceTest {
                 ),
             )
 
-        val refreshed = service.refreshSession(registered.session.refreshToken.value)
+        assertTrue(SessionId.isValidSessionId(result.session.sessionId))
+        assertEquals(fixedClock.now() + SessionLifetime.idleLifetime, result.session.idleExpiresAt)
+        assertEquals(fixedClock.now() + SessionLifetime.absoluteLifetime, result.session.absoluteExpiresAt)
 
-        assertNotEquals(registered.session.refreshToken.value, refreshed.refreshToken.value)
-        assertThrows(InvalidRefreshTokenException::class.java) {
-            service.refreshSession(registered.session.refreshToken.value)
-        }
-        assertEquals(2, repository.refreshSessions.sessions.size)
-        assertEquals(1, repository.refreshSessions.sessions.count { it.revokedAt != null })
+        val sessionHash = SessionId.hash(result.session.sessionId)
+        val stored = sessionStore.sessions.getValue(sessionHash)
+        assertEquals(
+            result.user.id.value
+                .toString(),
+            stored.userId,
+        )
+        assertEquals(0, stored.userSessionVersion)
+        assertEquals(
+            0,
+            sessionStore.userSessionVersions.getValue(
+                result.user.id.value
+                    .toString(),
+            ),
+        )
     }
 
     @Test
-    fun `logout revokes refresh session`() {
+    fun `logout revokes current session by hash`() {
         val repository = RecordingIdentityUserRepository()
-        val service = createService(repository)
+        val sessionStore = RecordingClientSessionStore()
+        val service = createService(repository, sessionStore)
+        val registered = registerAlice(service, sessionStore)
 
-        val registered =
+        val sessionHash = SessionId.hash(registered.session.sessionId)
+        service.logoutSession(sessionHash)
+
+        assertFalse(sessionStore.sessions.containsKey(sessionHash))
+    }
+
+    @Test
+    fun `touch extends idle expiry after threshold`() {
+        val repository = RecordingIdentityUserRepository()
+        val sessionStore = RecordingClientSessionStore()
+        val issuedAt = Instant.parse("2026-04-23T00:00:00Z")
+        val fixedClock =
+            object : Clock {
+                override fun now(): Instant = issuedAt + 25.hours
+            }
+        val service = createService(repository, sessionStore, clock = fixedClock)
+        val registered = registerAlice(service, sessionStore, issuedAtOverride = issuedAt)
+        val sessionHash = SessionId.hash(registered.session.sessionId)
+
+        service.touchSession(sessionHash)
+
+        val touched = sessionStore.sessions.getValue(sessionHash)
+        assertEquals(issuedAt + 25.hours, touched.lastTouchedAt)
+        assertEquals(issuedAt + 25.hours + SessionLifetime.idleLifetime, touched.idleExpiresAt)
+    }
+
+    @Test
+    fun `change password increments user session version projection`() {
+        val repository = RecordingIdentityUserRepository()
+        val sessionStore = RecordingClientSessionStore()
+        val service = createService(repository, sessionStore)
+        val registered = registerAlice(service, sessionStore)
+
+        service.changePassword(
+            userId = registered.user.id,
+            command =
+                jp.xhw.mikke.services.identity.application.command.ChangePasswordCommand(
+                    currentPassword = "password123",
+                    newPassword = "password456",
+                ),
+        )
+
+        assertEquals(1, repository.sessionVersion)
+        assertEquals(
+            1,
+            sessionStore.userSessionVersions.getValue(
+                registered.user.id.value
+                    .toString(),
+            ),
+        )
+    }
+
+    @Test
+    fun `login session version projection does not regress`() {
+        val repository = RecordingIdentityUserRepository()
+        val sessionStore = RecordingClientSessionStore()
+        val service = createService(repository, sessionStore)
+        val registered = registerAlice(service, sessionStore)
+        val userId =
+            registered.user.id.value
+                .toString()
+        sessionStore.userSessionVersions[userId] = 1
+
+        service.login(
+            LoginIdentityUserCommand(
+                loginId = "alice",
+                password = "password123",
+            ),
+        )
+
+        assertEquals(1, sessionStore.userSessionVersions.getValue(userId))
+    }
+
+    @Test
+    fun `session version projection failure rolls back issued session`() {
+        val repository = RecordingIdentityUserRepository()
+        val sessionStore =
+            RecordingClientSessionStore().apply {
+                failVersionProjection = true
+            }
+        val service = createService(repository, sessionStore)
+
+        assertThrows(SessionVersionProjectionException::class.java) {
             service.register(
                 RegisterIdentityUserCommand(
                     email = "alice@example.com",
@@ -142,19 +241,17 @@ class IdentityServiceTest {
                     password = "password123",
                 ),
             )
-
-        service.logout(registered.session.refreshToken.value)
-
-        assertThrows(InvalidRefreshTokenException::class.java) {
-            service.refreshSession(registered.session.refreshToken.value)
         }
+
+        assertTrue(sessionStore.sessions.isEmpty())
     }
 
     @Test
     fun `getUser returns public profile without email`() {
         val repository = RecordingIdentityUserRepository()
-        val service = createService(repository)
-        val registered = registerAlice(service)
+        val sessionStore = RecordingClientSessionStore()
+        val service = createService(repository, sessionStore)
+        val registered = registerAlice(service, sessionStore)
 
         val user = service.getUser(registered.user.id)
 
@@ -165,8 +262,9 @@ class IdentityServiceTest {
     @Test
     fun `getUser hides deactivated users`() {
         val repository = RecordingIdentityUserRepository()
-        val service = createService(repository)
-        val registered = registerAlice(service)
+        val sessionStore = RecordingClientSessionStore()
+        val service = createService(repository, sessionStore)
+        val registered = registerAlice(service, sessionStore)
 
         repository.savedUser = registered.user.copy(status = IdentityUserStatus.DEACTIVATED)
 
@@ -178,8 +276,9 @@ class IdentityServiceTest {
     @Test
     fun `batchGetUsers returns only existing active users`() {
         val repository = RecordingIdentityUserRepository()
-        val service = createService(repository)
-        val alice = registerAlice(service)
+        val sessionStore = RecordingClientSessionStore()
+        val service = createService(repository, sessionStore)
+        val alice = registerAlice(service, sessionStore)
         val missingId = UserId(Uuid.random())
 
         val users =
@@ -194,7 +293,7 @@ class IdentityServiceTest {
     @Test
     fun `searchUsers matches username prefix`() {
         val repository = RecordingIdentityUserRepository()
-        val service = createService(repository)
+        val service = createService(repository, RecordingClientSessionStore())
         repository.seedSearchUsers(
             listOf(
                 user(username = "alice", displayName = "Alice"),
@@ -215,14 +314,13 @@ class IdentityServiceTest {
     @Test
     fun `updateProfile normalizes username and writes profile updated outbox`() {
         val repository = RecordingIdentityUserRepository()
-        val service = createService(repository)
-        val registered = registerAlice(service)
+        val sessionStore = RecordingClientSessionStore()
+        val service = createService(repository, sessionStore)
+        val registered = registerAlice(service, sessionStore)
 
         val updated =
             service.updateProfile(
-                subject =
-                    registered.user.id.value
-                        .toString(),
+                userId = registered.user.id,
                 command =
                     UpdateProfileCommand(
                         username = "Alice_Official",
@@ -245,14 +343,13 @@ class IdentityServiceTest {
     fun `updateProfile duplicate username throws duplicate exception`() {
         val repository = RecordingIdentityUserRepository()
         repository.duplicateOnUpdate = true
-        val service = createService(repository)
-        val registered = registerAlice(service)
+        val sessionStore = RecordingClientSessionStore()
+        val service = createService(repository, sessionStore)
+        val registered = registerAlice(service, sessionStore)
 
         assertThrows(DuplicateIdentityUserException::class.java) {
             service.updateProfile(
-                subject =
-                    registered.user.id.value
-                        .toString(),
+                userId = registered.user.id,
                 command = UpdateProfileCommand(username = "bob", displayName = null, avatarMediaId = null),
             )
         }
@@ -261,13 +358,11 @@ class IdentityServiceTest {
     @Test
     fun `deactivate blocks login and public profile lookup`() {
         val repository = RecordingIdentityUserRepository()
-        val service = createService(repository)
-        val registered = registerAlice(service)
+        val sessionStore = RecordingClientSessionStore()
+        val service = createService(repository, sessionStore)
+        val registered = registerAlice(service, sessionStore)
 
-        service.deactivateAccount(
-            registered.user.id.value
-                .toString(),
-        )
+        service.deactivateAccount(registered.user.id)
 
         assertThrows(InvalidCredentialsException::class.java) {
             service.login(
@@ -291,8 +386,9 @@ class IdentityServiceTest {
     @Test
     fun `login rejects user deactivated after password verification`() {
         val repository = RecordingIdentityUserRepository()
-        val service = createService(repository)
-        val registered = registerAlice(service)
+        val sessionStore = RecordingClientSessionStore()
+        val service = createService(repository, sessionStore)
+        val registered = registerAlice(service, sessionStore)
 
         repository.loginUser = registered.user
         repository.savedUser = registered.user.copy(status = IdentityUserStatus.DEACTIVATED)
@@ -305,13 +401,13 @@ class IdentityServiceTest {
                 ),
             )
         }
-        assertEquals(1, repository.refreshSessions.sessions.size)
+        assertEquals(1, sessionStore.sessions.size)
     }
 
     @Test
     fun `user created outbox payload contains expected fields`() {
         val repository = RecordingIdentityUserRepository()
-        val service = createService(repository)
+        val service = createService(repository, RecordingClientSessionStore())
 
         service.register(
             RegisterIdentityUserCommand(
@@ -337,28 +433,46 @@ class IdentityServiceTest {
 
     private fun createService(
         repository: RecordingIdentityUserRepository,
+        sessionStore: RecordingClientSessionStore,
         clock: Clock = Clock.System,
     ): IdentityService =
         IdentityService(
             userRepository = repository,
-            refreshSessionRepository = repository.refreshSessions,
+            clientSessionStore = sessionStore,
             userOutbox = repository.outbox,
             transactionRunner = ImmediateTransactionRunner,
             passwordHasher = PasswordHasher(),
-            tokenService = JwtTokenService(secret = "test-secret", clock = clock),
-            refreshSessionTokenService = RefreshSessionTokenService(),
             clock = clock,
         )
 
-    private fun registerAlice(service: IdentityService): AuthenticatedIdentityUser =
-        service.register(
-            RegisterIdentityUserCommand(
-                email = "alice@example.com",
-                username = "alice",
-                displayName = "Alice",
-                password = "password123",
-            ),
-        )
+    private fun registerAlice(
+        service: IdentityService,
+        sessionStore: RecordingClientSessionStore,
+        issuedAtOverride: Instant? = null,
+    ): AuthenticatedIdentityUser {
+        val result =
+            service.register(
+                RegisterIdentityUserCommand(
+                    email = "alice@example.com",
+                    username = "alice",
+                    displayName = "Alice",
+                    password = "password123",
+                ),
+            )
+        if (issuedAtOverride != null) {
+            val sessionHash = SessionId.hash(result.session.sessionId)
+            val record =
+                SessionRecordCodec.createNew(
+                    userId =
+                        result.user.id.value
+                            .toString(),
+                    userSessionVersion = 0,
+                    issuedAt = issuedAtOverride,
+                )
+            sessionStore.sessions[sessionHash] = record
+        }
+        return result
+    }
 
     private fun user(
         username: String,
@@ -391,7 +505,7 @@ private class RecordingIdentityUserRepository :
     var loginUser: IdentityUser? = null
     var duplicateOnSave: Boolean = false
     var duplicateOnUpdate: Boolean = false
-    val refreshSessions = RecordingRefreshSessionRepository()
+    var sessionVersion: Int = 0
     val outbox = RecordingIdentityUserOutbox()
     private var searchUsers: List<IdentityUser> = emptyList()
 
@@ -464,6 +578,23 @@ private class RecordingIdentityUserRepository :
         }
         savedUser = current.copy(passwordHash = passwordHash, updatedAt = updatedAt)
         return true
+    }
+
+    override fun getSessionVersion(userId: UserId): Int {
+        val current = savedUser ?: throw UserNotFoundException()
+        if (current.id != userId) {
+            throw UserNotFoundException()
+        }
+        return sessionVersion
+    }
+
+    override fun incrementSessionVersion(userId: UserId): Int {
+        val current = savedUser ?: throw UserNotFoundException()
+        if (current.id != userId) {
+            throw UserNotFoundException()
+        }
+        sessionVersion += 1
+        return sessionVersion
     }
 
     override fun appendUserCreated(user: IdentityUser) = outbox.appendUserCreated(user)
@@ -557,57 +688,36 @@ private class RecordingIdentityUserOutbox : IdentityUserOutbox {
     }
 }
 
-private class RecordingRefreshSessionRepository : RefreshSessionRepository {
-    val sessions = mutableListOf<RefreshSession>()
+private class RecordingClientSessionStore : ClientSessionStore {
+    val sessions = mutableMapOf<String, SessionRecord>()
+    val userSessionVersions = mutableMapOf<String, Int>()
+    var failVersionProjection: Boolean = false
 
-    override fun save(session: RefreshSession) {
-        sessions += session
-    }
-
-    override fun findByRefreshTokenHash(refreshTokenHash: String): RefreshSession? =
-        sessions.lastOrNull { it.refreshTokenHash == refreshTokenHash }
-
-    override fun revoke(
-        sessionId: RefreshSessionId,
-        revokedAt: Instant,
-    ): Boolean {
-        val index =
-            sessions.indexOfFirst {
-                it.id == sessionId && it.revokedAt == null
-            }
-        if (index < 0) {
-            return false
-        }
-
-        sessions[index] = sessions[index].copy(revokedAt = revokedAt)
-        return true
-    }
-
-    override fun revokeByRefreshTokenHash(
-        refreshTokenHash: String,
-        revokedAt: Instant,
-    ): Boolean {
-        val index =
-            sessions.indexOfFirst {
-                it.refreshTokenHash == refreshTokenHash && it.revokedAt == null
-            }
-        if (index < 0) {
-            return false
-        }
-
-        sessions[index] = sessions[index].copy(revokedAt = revokedAt)
-        return true
-    }
-
-    override fun revokeAllForUser(
-        userId: UserId,
-        revokedAt: Instant,
+    override fun saveSession(
+        sessionHash: String,
+        record: SessionRecord,
     ) {
-        sessions.indices.forEach { index ->
-            val session = sessions[index]
-            if (session.userId == userId && session.revokedAt == null) {
-                sessions[index] = session.copy(revokedAt = revokedAt)
-            }
+        sessions[sessionHash] = record
+    }
+
+    override fun findSession(sessionHash: String): SessionRecord? = sessions[sessionHash]
+
+    override fun touchSession(
+        sessionHash: String,
+        record: SessionRecord,
+    ) {
+        saveSession(sessionHash, record)
+    }
+
+    override fun deleteSession(sessionHash: String): Boolean = sessions.remove(sessionHash) != null
+
+    override fun saveUserSessionVersion(
+        userId: String,
+        version: Int,
+    ) {
+        if (failVersionProjection) {
+            throw IllegalStateException("redis unavailable")
         }
+        userSessionVersions[userId] = maxOf(userSessionVersions[userId] ?: version, version)
     }
 }

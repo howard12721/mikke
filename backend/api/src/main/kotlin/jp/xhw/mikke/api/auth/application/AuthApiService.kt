@@ -1,5 +1,7 @@
 package jp.xhw.mikke.api.auth.application
 
+import jp.xhw.mikke.api.graphql.ApiRequestContext
+import jp.xhw.mikke.api.graphql.requireAuthenticatedActor
 import jp.xhw.mikke.api.http.ApiErrorCode
 import jp.xhw.mikke.api.http.ApiHttpException
 import jp.xhw.mikke.platform.auth.PasswordPolicy
@@ -77,28 +79,9 @@ class AuthApiService(
         )
     }
 
-    suspend fun refresh(command: RefreshCommand): RefreshResult {
-        val refreshToken = command.refreshToken.trim()
-        if (refreshToken.isEmpty()) {
-            throw ApiHttpException(
-                status = ApiErrorCode.InvalidRequest.status,
-                message = "refreshToken is required",
-            )
-        }
-
-        return identityAuthGateway.refresh(RefreshCommand(refreshToken = refreshToken))
-    }
-
-    suspend fun logout(command: LogoutCommand) {
-        val refreshToken = command.refreshToken.trim()
-        if (refreshToken.isEmpty()) {
-            throw ApiHttpException(
-                status = ApiErrorCode.InvalidRequest.status,
-                message = "refreshToken is required",
-            )
-        }
-
-        identityAuthGateway.logout(LogoutCommand(refreshToken = refreshToken))
+    suspend fun logout(context: ApiRequestContext) {
+        val actor = context.requireAuthenticatedActor()
+        identityAuthGateway.logout(LogoutCommand(sessionHash = actor.sessionHash))
     }
 }
 
@@ -124,16 +107,8 @@ data class RegisterResult(
     val session: AuthSession,
 )
 
-data class RefreshCommand(
-    val refreshToken: String,
-)
-
-data class RefreshResult(
-    val session: AuthSession,
-)
-
 data class LogoutCommand(
-    val refreshToken: String,
+    val sessionHash: String,
 )
 
 data class AuthenticatedUser(
@@ -147,8 +122,7 @@ data class AuthenticatedUser(
 )
 
 data class AuthSession(
-    val accessToken: String,
-    val refreshToken: String,
-    val accessTokenExpiresAt: String,
-    val refreshTokenExpiresAt: String,
+    val sessionId: String,
+    val idleExpiresAt: String,
+    val absoluteExpiresAt: String,
 )

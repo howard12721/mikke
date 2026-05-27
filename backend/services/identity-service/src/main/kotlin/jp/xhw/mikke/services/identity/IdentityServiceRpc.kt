@@ -2,8 +2,6 @@ package jp.xhw.mikke.services.identity
 
 import io.grpc.Status
 import jp.xhw.mikke.identity.v1.*
-import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
-import jp.xhw.mikke.platform.grpc.currentAuthenticatedUser
 import jp.xhw.mikke.platform.grpc.withGrpcExceptionMapping
 import jp.xhw.mikke.platform.pagination.PageRequestInput
 import jp.xhw.mikke.platform.pagination.validate
@@ -12,7 +10,9 @@ import jp.xhw.mikke.services.identity.application.command.LoginIdentityUserComma
 import jp.xhw.mikke.services.identity.application.command.RegisterIdentityUserCommand
 import jp.xhw.mikke.services.identity.application.command.UpdateProfileCommand
 import jp.xhw.mikke.services.identity.application.exception.IdentityApplicationException
+import jp.xhw.mikke.services.identity.application.input.parseActorUserId
 import jp.xhw.mikke.services.identity.application.input.parseAvatarMediaIdOrNull
+import jp.xhw.mikke.services.identity.application.input.parseSessionHash
 import jp.xhw.mikke.services.identity.application.input.parseUserId
 import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
 import jp.xhw.mikke.services.identity.application.service.IdentityService
@@ -59,30 +59,23 @@ class IdentityServiceRpc(
                 .build()
         }
 
-    override suspend fun refreshSession(request: RefreshSessionRequest): RefreshSessionResponse =
+    override suspend fun touchSession(request: TouchSessionRequest): TouchSessionResponse =
         mapRpcExceptions {
-            val session = identityService.refreshSession(request.refreshToken.requireField("refresh_token"))
+            identityService.touchSession(parseSessionHash(request.sessionHash))
 
-            RefreshSessionResponse
-                .newBuilder()
-                .setSession(session.toProto())
-                .build()
+            TouchSessionResponse.getDefaultInstance()
         }
 
     override suspend fun logoutSession(request: LogoutSessionRequest): LogoutSessionResponse =
         mapRpcExceptions {
-            identityService.logout(request.refreshToken.requireField("refresh_token"))
+            identityService.logoutSession(parseSessionHash(request.sessionHash))
 
             LogoutSessionResponse.getDefaultInstance()
         }
 
     override suspend fun getMe(request: GetMeRequest): GetMeResponse =
         mapRpcExceptions {
-            val principal =
-                GrpcAuthContext.currentPrincipal()
-                    ?: throw Status.UNAUTHENTICATED.withDescription("Authentication required").asRuntimeException()
-
-            val user = identityService.getMe(principal.subject)
+            val user = identityService.getMe(parseActorUserId(request.actor))
 
             GetMeResponse
                 .newBuilder()
@@ -139,17 +132,15 @@ class IdentityServiceRpc(
     override suspend fun updateProfile(request: UpdateProfileRequest): UpdateProfileResponse =
         mapRpcExceptions {
             val user =
-                currentAuthenticatedUser().let { userId ->
-                    identityService.updateProfile(
-                        subject = userId.toString(),
-                        command =
-                            UpdateProfileCommand(
-                                username = request.username.takeIf { it.isNotBlank() },
-                                displayName = request.displayName.takeIf { it.isNotBlank() },
-                                avatarMediaId = parseAvatarMediaIdOrNull(request.avatarMediaId),
-                            ),
-                    )
-                }
+                identityService.updateProfile(
+                    userId = parseActorUserId(request.actor),
+                    command =
+                        UpdateProfileCommand(
+                            username = request.username.takeIf { it.isNotBlank() },
+                            displayName = request.displayName.takeIf { it.isNotBlank() },
+                            avatarMediaId = parseAvatarMediaIdOrNull(request.avatarMediaId),
+                        ),
+                )
 
             UpdateProfileResponse
                 .newBuilder()
@@ -159,7 +150,7 @@ class IdentityServiceRpc(
 
     override suspend fun deactivateAccount(request: DeactivateAccountRequest): DeactivateAccountResponse =
         mapRpcExceptions {
-            identityService.deactivateAccount(currentAuthenticatedUser().toString())
+            identityService.deactivateAccount(parseActorUserId(request.actor))
 
             DeactivateAccountResponse.getDefaultInstance()
         }
@@ -167,7 +158,7 @@ class IdentityServiceRpc(
     override suspend fun changePassword(request: ChangePasswordRequest): ChangePasswordResponse =
         mapRpcExceptions {
             identityService.changePassword(
-                subject = currentAuthenticatedUser().toString(),
+                userId = parseActorUserId(request.actor),
                 command =
                     ChangePasswordCommand(
                         currentPassword = request.currentPassword.requireField("current_password"),

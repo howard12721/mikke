@@ -3,10 +3,7 @@ package jp.xhw.mikke.api.media.infrastructure
 import io.grpc.ManagedChannel
 import jp.xhw.mikke.api.common.infrastructure.call
 import jp.xhw.mikke.api.graphql.ApiRequestContext
-import jp.xhw.mikke.api.infrastructure.authHeaderInterceptor
-import jp.xhw.mikke.api.infrastructure.closeChannel
-import jp.xhw.mikke.api.infrastructure.gatewayChannelFromEnvironment
-import jp.xhw.mikke.api.infrastructure.toIsoString
+import jp.xhw.mikke.api.infrastructure.*
 import jp.xhw.mikke.api.media.application.Media
 import jp.xhw.mikke.api.media.application.MediaGateway
 import jp.xhw.mikke.api.media.application.MediaUploadUrl
@@ -17,7 +14,7 @@ import jp.xhw.mikke.media.v1.Media as ProtoMedia
 class GrpcMediaGateway(
     private val channel: ManagedChannel,
     private val stub: MediaServiceGrpcKt.MediaServiceCoroutineStub =
-        MediaServiceGrpcKt.MediaServiceCoroutineStub(channel),
+        MediaServiceGrpcKt.MediaServiceCoroutineStub(channel).withInternalAuth(),
 ) : MediaGateway {
     override suspend fun createUploadUrl(
         context: ApiRequestContext,
@@ -31,8 +28,9 @@ class GrpcMediaGateway(
                     .newBuilder()
                     .setContentType(contentType)
                     .setContentLengthBytes(contentLengthBytes)
+                    .setActor(context.requireActorProto())
             originalFileName?.let(builder::setOriginalFileName)
-            context.stub().createUploadUrl(builder.build()).toMediaUploadUrl()
+            stub.createUploadUrl(builder.build()).toMediaUploadUrl()
         }
 
     override suspend fun checkUpload(
@@ -41,13 +39,13 @@ class GrpcMediaGateway(
         objectKey: String,
     ): UploadCheck =
         call {
-            context
-                .stub()
+            stub
                 .checkUpload(
                     CheckUploadRequest
                         .newBuilder()
                         .setMediaId(mediaId)
                         .setObjectKey(objectKey)
+                        .setActor(context.requireActorProto())
                         .build(),
                 ).toUploadCheck()
         }
@@ -57,10 +55,14 @@ class GrpcMediaGateway(
         mediaId: String,
     ): Media =
         call {
-            context
-                .stub()
-                .getMedia(GetMediaRequest.newBuilder().setMediaId(mediaId).build())
-                .media
+            stub
+                .getMedia(
+                    GetMediaRequest
+                        .newBuilder()
+                        .setMediaId(mediaId)
+                        .setActor(context.requireActorProto())
+                        .build(),
+                ).media
                 .toMedia()
         }
 
@@ -72,18 +74,19 @@ class GrpcMediaGateway(
             emptyList()
         } else {
             call {
-                context
-                    .stub()
-                    .batchGetMedia(BatchGetMediaRequest.newBuilder().addAllMediaIds(mediaIds).build())
-                    .mediaList
+                stub
+                    .batchGetMedia(
+                        BatchGetMediaRequest
+                            .newBuilder()
+                            .addAllMediaIds(mediaIds)
+                            .setActor(context.requireActorProto())
+                            .build(),
+                    ).mediaList
                     .map { it.toMedia() }
             }
         }
 
     override fun close() = closeChannel(channel)
-
-    private fun ApiRequestContext.stub(): MediaServiceGrpcKt.MediaServiceCoroutineStub =
-        authHeaderInterceptor(this)?.let { stub.withInterceptors(it) } ?: stub
 
     companion object {
         fun fromEnvironment(): GrpcMediaGateway =

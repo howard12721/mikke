@@ -8,14 +8,15 @@ import jp.xhw.mikke.api.infrastructure.gatewayChannelFromEnvironment
 import jp.xhw.mikke.api.infrastructure.grpcGatewayCall
 import jp.xhw.mikke.api.infrastructure.toIsoString
 import jp.xhw.mikke.identity.v1.*
+import jp.xhw.mikke.platform.grpc.InternalCallerClientInterceptor
 import jp.xhw.mikke.identity.v1.AuthSession as ProtoAuthSession
 
 class GrpcIdentityAuthGateway(
     private val channel: ManagedChannel,
     private val stub: IdentityServiceGrpcKt.IdentityServiceCoroutineStub =
-        IdentityServiceGrpcKt.IdentityServiceCoroutineStub(
-            channel,
-        ),
+        IdentityServiceGrpcKt
+            .IdentityServiceCoroutineStub(channel)
+            .withInterceptors(InternalCallerClientInterceptor(serviceName = "api")),
 ) : IdentityAuthGateway {
     override suspend fun login(command: LoginCommand): LoginResult =
         grpcGatewayCall {
@@ -25,11 +26,6 @@ class GrpcIdentityAuthGateway(
     override suspend fun register(command: RegisterCommand): RegisterResult =
         grpcGatewayCall {
             stub.registerUser(command.toRequestModel()).toRegisterResult()
-        }
-
-    override suspend fun refresh(command: RefreshCommand): RefreshResult =
-        grpcGatewayCall {
-            stub.refreshSession(command.toRequestModel()).toRefreshResult()
         }
 
     override suspend fun logout(command: LogoutCommand) {
@@ -82,21 +78,10 @@ private fun RegisterUserResponse.toRegisterResult(): RegisterResult =
         session = session.toAuthSession(),
     )
 
-private fun RefreshCommand.toRequestModel(): RefreshSessionRequest =
-    RefreshSessionRequest
-        .newBuilder()
-        .setRefreshToken(refreshToken)
-        .build()
-
-private fun RefreshSessionResponse.toRefreshResult(): RefreshResult =
-    RefreshResult(
-        session = session.toAuthSession(),
-    )
-
 private fun LogoutCommand.toRequestModel(): LogoutSessionRequest =
     LogoutSessionRequest
         .newBuilder()
-        .setRefreshToken(refreshToken)
+        .setSessionHash(sessionHash)
         .build()
 
 private fun User.toAuthenticatedUser(): AuthenticatedUser =
@@ -112,10 +97,9 @@ private fun User.toAuthenticatedUser(): AuthenticatedUser =
 
 private fun ProtoAuthSession.toAuthSession(): AuthSession =
     AuthSession(
-        accessToken = accessToken,
-        refreshToken = refreshToken,
-        accessTokenExpiresAt = accessTokenExpiresAt.toIsoString(),
-        refreshTokenExpiresAt = refreshTokenExpiresAt.toIsoString(),
+        sessionId = sessionId,
+        idleExpiresAt = idleExpiresAt.toIsoString(),
+        absoluteExpiresAt = absoluteExpiresAt.toIsoString(),
     )
 
 private fun UserStatus.toApiStatus(): String =

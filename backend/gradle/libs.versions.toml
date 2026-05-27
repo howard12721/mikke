@@ -67,7 +67,6 @@ ktor-server = [
     "ktor-server-core",
     "ktor-server-netty",
     "ktor-server-auth",
-    "ktor-server-auth-jwt",
     "ktor-server-call-logging",
     "ktor-server-content-negotiation",
     "ktor-serialization-kotlinx-json",

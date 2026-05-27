@@ -28,7 +28,11 @@ fun Application.configureApiGraphQl(dependencies: ApiDependencies) {
             exceptionHandler = ApiGraphQlExceptionHandler()
         }
         server {
-            contextFactory = ApiGraphQlContextFactory()
+            contextFactory =
+                ApiGraphQlContextFactory(
+                    sessionAuthenticator = dependencies.sessionAuthenticator,
+                    touchScheduler = dependencies.touchScheduler,
+                )
         }
     }
 }

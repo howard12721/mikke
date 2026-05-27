@@ -24,6 +24,7 @@ service GuessService {
 message SubmitGuessRequest {
   string post_id = 1;
   mikke.common.v1.GeoPoint guessed_point = 2;
+  mikke.common.v1.ActorContext actor = 3;
 }
 
 message SubmitGuessResponse {
@@ -32,6 +33,7 @@ message SubmitGuessResponse {
 
 message GetGuessRequest {
   string guess_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message GetGuessResponse {
@@ -40,6 +42,7 @@ message GetGuessResponse {
 
 message GetMyGuessForPostRequest {
   string post_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message GetMyGuessForPostResponse {
@@ -51,6 +54,7 @@ message GetMyGuessForPostResponse {
 
 message BatchGetMyGuessesForPostsRequest {
   repeated string post_ids = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message BatchGetMyGuessesForPostsResponse {
@@ -61,6 +65,7 @@ message BatchGetMyGuessesForPostsResponse {
 message ListGuessesForPostRequest {
   string post_id = 1;
   mikke.common.v1.PageRequest page = 2;
+  mikke.common.v1.ActorContext actor = 3;
 }
 
 message ListGuessesForPostResponse {
@@ -70,6 +75,7 @@ message ListGuessesForPostResponse {
 
 message ListMyGuessesRequest {
   mikke.common.v1.PageRequest page = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message ListMyGuessesResponse {
@@ -79,6 +85,7 @@ message ListMyGuessesResponse {
 
 message GetPostGuessStatsRequest {
   string post_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message GetPostGuessStatsResponse {
@@ -87,6 +94,7 @@ message GetPostGuessStatsResponse {
 
 message GetUserScoreSummaryRequest {
   string user_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message GetUserScoreSummaryResponse {
@@ -97,6 +105,7 @@ message ListPostRankingsRequest {
   reserved 1;
 
   mikke.common.v1.PageRequest page = 2;
+  mikke.common.v1.ActorContext actor = 3;
 }
 
 message ListPostRankingsResponse {
@@ -109,6 +118,7 @@ message ListGuessRankingsRequest {
 
   GuessRankingMetric metric = 2;
   mikke.common.v1.PageRequest page = 3;
+  mikke.common.v1.ActorContext actor = 4;
 }
 
 message ListGuessRankingsResponse {

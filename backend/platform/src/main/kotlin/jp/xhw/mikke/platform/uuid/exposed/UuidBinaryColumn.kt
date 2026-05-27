@@ -14,14 +14,20 @@ class UuidBinaryColumnType(
 
     override fun valueFromDB(value: Any): Uuid =
         when (value) {
-            is ByteArray -> value.toUuid()
+            is ByteArray -> {
+                value.toUuid()
+            }
+
             is java.nio.ByteBuffer -> {
                 val buffer = value.duplicate()
                 val bytes = ByteArray(buffer.remaining())
                 buffer.get(bytes)
                 bytes.toUuid()
             }
-            else -> error("Unexpected UUID binary value: ${value::class.qualifiedName}")
+
+            else -> {
+                error("Unexpected UUID binary value: ${value::class.qualifiedName}")
+            }
         }
 
     override fun notNullValueToDB(value: Uuid): Any = value.toBinary16()

@@ -1,6 +1,6 @@
 <configuration>
-    <property name="ROOT_LOG_LEVEL" value="${ROOT_LOG_LEVEL:-INFO}" />
-    <property name="EXPOSED_LOG_LEVEL" value="${EXPOSED_LOG_LEVEL:-WARN}" />
+    <property name="ROOT_LOG_LEVEL" value="${ROOT_LOG_LEVEL:-INFO}"/>
+    <property name="EXPOSED_LOG_LEVEL" value="${EXPOSED_LOG_LEVEL:-WARN}"/>
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
@@ -8,10 +8,10 @@
         </encoder>
     </appender>
 
-    <logger name="Exposed" level="${EXPOSED_LOG_LEVEL}" />
-    <logger name="org.jetbrains.exposed" level="${EXPOSED_LOG_LEVEL}" />
+    <logger name="Exposed" level="${EXPOSED_LOG_LEVEL}"/>
+    <logger name="org.jetbrains.exposed" level="${EXPOSED_LOG_LEVEL}"/>
 
     <root level="${ROOT_LOG_LEVEL}">
-        <appender-ref ref="STDOUT" />
+        <appender-ref ref="STDOUT"/>
     </root>
 </configuration>

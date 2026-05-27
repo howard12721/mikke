@@ -488,7 +488,8 @@ class PostService(
             throw PermissionDeniedException("post is private")
         }
 
-        val resolvedActiveUsers = activeUsers ?: userStatusChecker.filterActiveUsers(setOf(viewerUserId, post.authorUserId))
+        val resolvedActiveUsers =
+            activeUsers ?: userStatusChecker.filterActiveUsers(setOf(viewerUserId, post.authorUserId))
         if (viewerUserId !in resolvedActiveUsers || post.authorUserId !in resolvedActiveUsers) {
             throw NotFoundException("post not found")
         }

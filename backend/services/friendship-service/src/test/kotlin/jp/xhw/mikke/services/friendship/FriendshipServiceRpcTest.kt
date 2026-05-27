@@ -1,27 +1,15 @@
 package jp.xhw.mikke.services.friendship
 
 import io.grpc.ManagedChannelBuilder
-import io.grpc.Metadata
 import io.grpc.ServerBuilder
 import io.grpc.Status
-import io.grpc.stub.MetadataUtils
+import jp.xhw.mikke.common.v1.ActorContext
 import jp.xhw.mikke.common.v1.PageRequest
 import jp.xhw.mikke.friendship.v1.*
-import jp.xhw.mikke.platform.auth.AuthenticatedPrincipal
-import jp.xhw.mikke.platform.auth.grpc.AuthMetadataKeys
-import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
-import jp.xhw.mikke.platform.auth.grpc.GrpcAuthServerInterceptor
 import jp.xhw.mikke.platform.database.TransactionRunner
-import jp.xhw.mikke.platform.grpc.GrpcExceptionHandlingServerInterceptor
-import jp.xhw.mikke.platform.grpc.InternalCallerContext
-import jp.xhw.mikke.platform.grpc.InternalRpcContext
-import jp.xhw.mikke.platform.grpc.toGrpcStatusRuntimeException
+import jp.xhw.mikke.platform.grpc.*
 import jp.xhw.mikke.platform.outbox.OutboxEntry
-import jp.xhw.mikke.services.friendship.application.exception.DuplicateFriendRequestException
-import jp.xhw.mikke.services.friendship.application.exception.FriendRequestNotFoundException
-import jp.xhw.mikke.services.friendship.application.exception.FriendshipApplicationException
-import jp.xhw.mikke.services.friendship.application.exception.FriendshipNotFoundException
-import jp.xhw.mikke.services.friendship.application.exception.FriendshipStateException
+import jp.xhw.mikke.services.friendship.application.exception.*
 import jp.xhw.mikke.services.friendship.application.port.BlockRepository
 import jp.xhw.mikke.services.friendship.application.port.FriendRequestRepository
 import jp.xhw.mikke.services.friendship.application.port.FriendshipOutbox
@@ -53,14 +41,13 @@ class FriendshipServiceRpcTest {
             val bob = UserId(Uuid.random())
 
             val response =
-                withUser(alice) {
-                    rpc.sendFriendRequest(
-                        SendFriendRequestRequest
-                            .newBuilder()
-                            .setReceiverUserId(" ${bob.value} ")
-                            .build(),
-                    )
-                }
+                rpc.sendFriendRequest(
+                    SendFriendRequestRequest
+                        .newBuilder()
+                        .setReceiverUserId(" ${bob.value} ")
+                        .setActor(actorFor(alice))
+                        .build(),
+                )
 
             assertEquals(alice.value.toString(), response.friendRequest.senderUserId)
             assertEquals(bob.value.toString(), response.friendRequest.receiverUserId)
@@ -68,12 +55,12 @@ class FriendshipServiceRpcTest {
         }
 
     @Test
-    fun `sendFriendRequest requires authentication`() =
+    fun `sendFriendRequest requires actor user id`() =
         runBlocking {
             val rpc = createRpc()
 
             val error =
-                assertStatus(Status.Code.UNAUTHENTICATED) {
+                assertStatus(Status.Code.INVALID_ARGUMENT) {
                     rpc.sendFriendRequest(
                         SendFriendRequestRequest
                             .newBuilder()
@@ -82,7 +69,7 @@ class FriendshipServiceRpcTest {
                     )
                 }
 
-            assertEquals("Authentication required", error.description)
+            assertEquals("actor.user_id is required", error.description)
         }
 
     @Test
@@ -92,14 +79,13 @@ class FriendshipServiceRpcTest {
 
             val error =
                 assertStatus(Status.Code.INVALID_ARGUMENT) {
-                    withUser(UserId(Uuid.random())) {
-                        rpc.sendFriendRequest(
-                            SendFriendRequestRequest
-                                .newBuilder()
-                                .setReceiverUserId("not-a-uuid")
-                                .build(),
-                        )
-                    }
+                    rpc.sendFriendRequest(
+                        SendFriendRequestRequest
+                            .newBuilder()
+                            .setReceiverUserId("not-a-uuid")
+                            .setActor(actorFor(UserId(Uuid.random())))
+                            .build(),
+                    )
                 }
 
             assertEquals("user_id must be a valid UUID", error.description)
@@ -112,14 +98,13 @@ class FriendshipServiceRpcTest {
             val alice = UserId(Uuid.random())
 
             assertStatus(Status.Code.INVALID_ARGUMENT) {
-                withUser(alice) {
-                    rpc.sendFriendRequest(
-                        SendFriendRequestRequest
-                            .newBuilder()
-                            .setReceiverUserId(alice.value.toString())
-                            .build(),
-                    )
-                }
+                rpc.sendFriendRequest(
+                    SendFriendRequestRequest
+                        .newBuilder()
+                        .setReceiverUserId(alice.value.toString())
+                        .setActor(actorFor(alice))
+                        .build(),
+                )
             }
         }
 
@@ -133,12 +118,13 @@ class FriendshipServiceRpcTest {
                 SendFriendRequestRequest
                     .newBuilder()
                     .setReceiverUserId(bob.value.toString())
+                    .setActor(actorFor(alice))
                     .build()
 
-            withUser(alice) { rpc.sendFriendRequest(request) }
+            rpc.sendFriendRequest(request)
 
             assertStatus(Status.Code.ALREADY_EXISTS) {
-                withUser(alice) { rpc.sendFriendRequest(request) }
+                rpc.sendFriendRequest(request)
             }
         }
 
@@ -159,15 +145,8 @@ class FriendshipServiceRpcTest {
                                 (throwable as? FriendshipApplicationException)?.toGrpcStatus()
                             },
                         ),
-                    ).intercept(
-                        GrpcAuthServerInterceptor(
-                            authenticator = { headers ->
-                                headers.get(AuthMetadataKeys.Authorization)?.removePrefix("Bearer ")?.let {
-                                    AuthenticatedPrincipal(subject = it)
-                                }
-                            },
-                        ),
-                    ).addService(createRpc())
+                    ).intercept(InternalRpcServerInterceptor(methodAuthPolicies = friendshipGrpcAuthPolicies()))
+                    .addService(createRpc())
                     .build()
                     .start()
             val channel =
@@ -177,18 +156,15 @@ class FriendshipServiceRpcTest {
                     .build()
 
             try {
-                val headers =
-                    Metadata().apply {
-                        put(AuthMetadataKeys.Authorization, "Bearer ${alice.value}")
-                    }
                 val stub =
                     FriendshipServiceGrpcKt
                         .FriendshipServiceCoroutineStub(channel)
-                        .withInterceptors(MetadataUtils.newAttachHeadersInterceptor(headers))
+                        .withInterceptors(InternalCallerClientInterceptor(serviceName = "api"))
                 val request =
                     SendFriendRequestRequest
                         .newBuilder()
                         .setReceiverUserId(bob.value.toString())
+                        .setActor(actorFor(alice))
                         .build()
 
                 stub.sendFriendRequest(request)
@@ -212,24 +188,22 @@ class FriendshipServiceRpcTest {
             val alice = UserId(Uuid.random())
             val bob = UserId(Uuid.random())
             val request =
-                withUser(alice) {
-                    rpc.sendFriendRequest(
-                        SendFriendRequestRequest
-                            .newBuilder()
-                            .setReceiverUserId(bob.value.toString())
-                            .build(),
-                    )
-                }
+                rpc.sendFriendRequest(
+                    SendFriendRequestRequest
+                        .newBuilder()
+                        .setReceiverUserId(bob.value.toString())
+                        .setActor(actorFor(alice))
+                        .build(),
+                )
 
             assertStatus(Status.Code.PERMISSION_DENIED) {
-                withUser(alice) {
-                    rpc.acceptFriendRequest(
-                        AcceptFriendRequestRequest
-                            .newBuilder()
-                            .setFriendRequestId(request.friendRequest.id)
-                            .build(),
-                    )
-                }
+                rpc.acceptFriendRequest(
+                    AcceptFriendRequestRequest
+                        .newBuilder()
+                        .setFriendRequestId(request.friendRequest.id)
+                        .setActor(actorFor(alice))
+                        .build(),
+                )
             }
         }
 
@@ -239,14 +213,13 @@ class FriendshipServiceRpcTest {
             val rpc = createRpc()
 
             assertStatus(Status.Code.NOT_FOUND) {
-                withUser(UserId(Uuid.random())) {
-                    rpc.acceptFriendRequest(
-                        AcceptFriendRequestRequest
-                            .newBuilder()
-                            .setFriendRequestId(Uuid.random().toString())
-                            .build(),
-                    )
-                }
+                rpc.acceptFriendRequest(
+                    AcceptFriendRequestRequest
+                        .newBuilder()
+                        .setFriendRequestId(Uuid.random().toString())
+                        .setActor(actorFor(UserId(Uuid.random())))
+                        .build(),
+                )
             }
         }
 
@@ -257,33 +230,30 @@ class FriendshipServiceRpcTest {
             val alice = UserId(Uuid.random())
             val bob = UserId(Uuid.random())
             val request =
-                withUser(alice) {
-                    rpc.sendFriendRequest(
-                        SendFriendRequestRequest
-                            .newBuilder()
-                            .setReceiverUserId(bob.value.toString())
-                            .build(),
-                    )
-                }
+                rpc.sendFriendRequest(
+                    SendFriendRequestRequest
+                        .newBuilder()
+                        .setReceiverUserId(bob.value.toString())
+                        .setActor(actorFor(alice))
+                        .build(),
+                )
 
-            withUser(bob) {
+            rpc.acceptFriendRequest(
+                AcceptFriendRequestRequest
+                    .newBuilder()
+                    .setFriendRequestId(request.friendRequest.id)
+                    .setActor(actorFor(bob))
+                    .build(),
+            )
+
+            assertStatus(Status.Code.FAILED_PRECONDITION) {
                 rpc.acceptFriendRequest(
                     AcceptFriendRequestRequest
                         .newBuilder()
                         .setFriendRequestId(request.friendRequest.id)
+                        .setActor(actorFor(bob))
                         .build(),
                 )
-            }
-
-            assertStatus(Status.Code.FAILED_PRECONDITION) {
-                withUser(bob) {
-                    rpc.acceptFriendRequest(
-                        AcceptFriendRequestRequest
-                            .newBuilder()
-                            .setFriendRequestId(request.friendRequest.id)
-                            .build(),
-                    )
-                }
             }
         }
 
@@ -295,24 +265,22 @@ class FriendshipServiceRpcTest {
             val alice = UserId(Uuid.random())
             val bob = UserId(Uuid.random())
             val request =
-                withUser(alice) {
-                    rpc.sendFriendRequest(
-                        SendFriendRequestRequest
-                            .newBuilder()
-                            .setReceiverUserId(bob.value.toString())
-                            .build(),
-                    )
-                }
+                rpc.sendFriendRequest(
+                    SendFriendRequestRequest
+                        .newBuilder()
+                        .setReceiverUserId(bob.value.toString())
+                        .setActor(actorFor(alice))
+                        .build(),
+                )
 
             assertStatus(Status.Code.FAILED_PRECONDITION) {
-                withUser(bob) {
-                    rpc.acceptFriendRequest(
-                        AcceptFriendRequestRequest
-                            .newBuilder()
-                            .setFriendRequestId(request.friendRequest.id)
-                            .build(),
-                    )
-                }
+                rpc.acceptFriendRequest(
+                    AcceptFriendRequestRequest
+                        .newBuilder()
+                        .setFriendRequestId(request.friendRequest.id)
+                        .setActor(actorFor(bob))
+                        .build(),
+                )
             }
         }
 
@@ -322,14 +290,13 @@ class FriendshipServiceRpcTest {
             val rpc = createRpc()
 
             assertStatus(Status.Code.NOT_FOUND) {
-                withUser(UserId(Uuid.random())) {
-                    rpc.removeFriend(
-                        RemoveFriendRequest
-                            .newBuilder()
-                            .setFriendUserId(Uuid.random().toString())
-                            .build(),
-                    )
-                }
+                rpc.removeFriend(
+                    RemoveFriendRequest
+                        .newBuilder()
+                        .setFriendUserId(Uuid.random().toString())
+                        .setActor(actorFor(UserId(Uuid.random())))
+                        .build(),
+                )
             }
         }
 
@@ -339,14 +306,13 @@ class FriendshipServiceRpcTest {
             val rpc = createRpc()
 
             assertStatus(Status.Code.NOT_FOUND) {
-                withUser(UserId(Uuid.random())) {
-                    rpc.unblockUser(
-                        UnblockUserRequest
-                            .newBuilder()
-                            .setBlockedUserId(Uuid.random().toString())
-                            .build(),
-                    )
-                }
+                rpc.unblockUser(
+                    UnblockUserRequest
+                        .newBuilder()
+                        .setBlockedUserId(Uuid.random().toString())
+                        .setActor(actorFor(UserId(Uuid.random())))
+                        .build(),
+                )
             }
         }
 
@@ -367,11 +333,11 @@ class FriendshipServiceRpcTest {
         }
 
     @Test
-    fun `batchGetFriendshipSummaries requires authentication`(): Unit =
+    fun `batchGetFriendshipSummaries requires actor user id`(): Unit =
         runBlocking {
             val rpc = createRpc()
 
-            assertStatus(Status.Code.UNAUTHENTICATED) {
+            assertStatus(Status.Code.INVALID_ARGUMENT) {
                 rpc.batchGetFriendshipSummaries(
                     BatchGetFriendshipSummariesRequest
                         .newBuilder()
@@ -389,10 +355,11 @@ class FriendshipServiceRpcTest {
             val bob = UserId(Uuid.random())
 
             val response =
-                withUser(alice) {
+                withInternalCaller("api") {
                     rpc.checkCanViewUserPosts(
                         CheckCanViewUserPostsRequest
                             .newBuilder()
+                            .setViewerUserId(alice.value.toString())
                             .setOwnerUserId(bob.value.toString())
                             .build(),
                     )
@@ -471,14 +438,13 @@ class FriendshipServiceRpcTest {
 
             val error =
                 assertStatus(Status.Code.INTERNAL) {
-                    withUser(UserId(Uuid.random())) {
-                        rpc.sendFriendRequest(
-                            SendFriendRequestRequest
-                                .newBuilder()
-                                .setReceiverUserId(Uuid.random().toString())
-                                .build(),
-                        )
-                    }
+                    rpc.sendFriendRequest(
+                        SendFriendRequestRequest
+                            .newBuilder()
+                            .setReceiverUserId(Uuid.random().toString())
+                            .setActor(actorFor(UserId(Uuid.random())))
+                            .build(),
+                    )
                 }
 
             assertEquals("Internal friendship service error", error.description)
@@ -504,13 +470,11 @@ class FriendshipServiceRpcTest {
     }
 }
 
-private fun <T> withUser(
-    userId: UserId,
-    block: suspend () -> T,
-): T =
-    GrpcAuthContext
-        .withPrincipal(AuthenticatedPrincipal(subject = userId.value.toString()))
-        .call<T> { runBlocking { block() } }
+private fun actorFor(userId: UserId): ActorContext =
+    ActorContext
+        .newBuilder()
+        .setUserId(userId.value.toString())
+        .build()
 
 private fun <T> withInternalCaller(
     serviceName: String,

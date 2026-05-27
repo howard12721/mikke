@@ -12,6 +12,7 @@ import jp.xhw.mikke.api.common.application.PageInput
 import jp.xhw.mikke.api.common.application.PageResult
 import jp.xhw.mikke.api.friendship.application.*
 import jp.xhw.mikke.api.graphql.ApiRequestContext
+import jp.xhw.mikke.api.testsupport.testApiDependencies
 import jp.xhw.mikke.api.user.application.CurrentUser
 import jp.xhw.mikke.api.user.application.PublicUser
 import jp.xhw.mikke.api.user.application.UserApiService
@@ -35,11 +36,18 @@ class FriendshipGraphQlTest {
             application {
                 apiModule(
                     dependencies =
-                        ApiDependencies(
+                        testApiDependencies(
                             authApiService = AuthApiService(NoopIdentityAuthGateway),
-                            userApiService = UserApiService(userGateway),
-                            friendshipApiService = FriendshipApiService(friendshipGateway),
-                        ),
+                        ).let { base ->
+                            ApiDependencies(
+                                authApiService = base.authApiService,
+                                sessionAuthenticator = base.sessionAuthenticator,
+                                touchScheduler = base.touchScheduler,
+                                userApiService = UserApiService(userGateway),
+                                friendshipApiService = FriendshipApiService(friendshipGateway),
+                                touchScope = null,
+                            )
+                        },
                 )
             }
 
@@ -212,17 +220,14 @@ private object NoopIdentityAuthGateway : IdentityAuthGateway {
 
     private val session =
         AuthSession(
-            accessToken = "test-access-token",
-            refreshToken = "test-refresh-token",
-            accessTokenExpiresAt = "2026-01-01T01:00:00Z",
-            refreshTokenExpiresAt = "2026-01-02T00:00:00Z",
+            sessionId = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            idleExpiresAt = "2026-01-01T01:00:00Z",
+            absoluteExpiresAt = "2026-01-02T00:00:00Z",
         )
 
     override suspend fun login(command: LoginCommand): LoginResult = LoginResult(user, session)
 
     override suspend fun register(command: RegisterCommand): RegisterResult = RegisterResult(user, session)
-
-    override suspend fun refresh(command: RefreshCommand): RefreshResult = RefreshResult(session)
 
     override suspend fun logout(command: LogoutCommand) = Unit
 }

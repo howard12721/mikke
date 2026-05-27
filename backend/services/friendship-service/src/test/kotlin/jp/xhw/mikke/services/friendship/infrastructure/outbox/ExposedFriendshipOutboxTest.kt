@@ -1,12 +1,6 @@
 package jp.xhw.mikke.services.friendship.infrastructure.outbox
 
-import jp.xhw.mikke.services.friendship.model.FriendRequest
-import jp.xhw.mikke.services.friendship.model.FriendRequestId
-import jp.xhw.mikke.services.friendship.model.FriendRequestStatus
-import jp.xhw.mikke.services.friendship.model.Friendship
-import jp.xhw.mikke.services.friendship.model.FriendshipId
-import jp.xhw.mikke.services.friendship.model.FriendshipStatus
-import jp.xhw.mikke.services.friendship.model.UserId
+import jp.xhw.mikke.services.friendship.model.*
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import kotlin.time.Instant

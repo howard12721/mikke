@@ -83,11 +83,6 @@ spec:
               key: secret-access-key
         - name: OBJECT_STORAGE_FORCE_PATH_STYLE
           value: 'true'
-        - name: IDENTITY_JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: identity-auth
-              key: jwt-secret
         - name: MIKKE_INTERNAL_RPC_TOKEN
           valueFrom:
             secretKeyRef:

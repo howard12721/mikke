@@ -33,6 +33,7 @@ dependencies {
     implementation(libs.graphql.kotlin.ktor.server)
     implementation(libs.graphql.kotlin.schema.generator)
     implementation(libs.bundles.grpc.client)
+    implementation(libs.redis.client)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
 

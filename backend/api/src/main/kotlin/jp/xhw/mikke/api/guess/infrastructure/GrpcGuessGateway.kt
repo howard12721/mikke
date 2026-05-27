@@ -16,10 +16,7 @@ import jp.xhw.mikke.api.guess.application.GuessUserRankingEntry
 import jp.xhw.mikke.api.guess.application.PostGuessStats
 import jp.xhw.mikke.api.guess.application.PostUserRankingEntry
 import jp.xhw.mikke.api.guess.application.UserScoreSummary
-import jp.xhw.mikke.api.infrastructure.authHeaderInterceptor
-import jp.xhw.mikke.api.infrastructure.closeChannel
-import jp.xhw.mikke.api.infrastructure.gatewayChannelFromEnvironment
-import jp.xhw.mikke.api.infrastructure.toIsoString
+import jp.xhw.mikke.api.infrastructure.*
 import jp.xhw.mikke.guess.v1.*
 import jp.xhw.mikke.guess.v1.Guess as ProtoGuess
 import jp.xhw.mikke.guess.v1.GuessResult as ProtoGuessResult
@@ -31,7 +28,7 @@ import jp.xhw.mikke.guess.v1.UserScoreSummary as ProtoUserScoreSummary
 class GrpcGuessGateway(
     private val channel: ManagedChannel,
     private val stub: GuessServiceGrpcKt.GuessServiceCoroutineStub =
-        GuessServiceGrpcKt.GuessServiceCoroutineStub(channel),
+        GuessServiceGrpcKt.GuessServiceCoroutineStub(channel).withInternalAuth(),
 ) : GuessGateway {
     override suspend fun submitGuess(
         context: ApiRequestContext,
@@ -39,13 +36,13 @@ class GrpcGuessGateway(
         guessedPoint: GeoPoint,
     ): GuessResult =
         call {
-            context
-                .stub()
+            stub
                 .submitGuess(
                     SubmitGuessRequest
                         .newBuilder()
                         .setPostId(postId)
                         .setGuessedPoint(guessedPoint.toProto())
+                        .setActor(context.requireActorProto())
                         .build(),
                 ).result
                 .toGuessResult()
@@ -57,9 +54,13 @@ class GrpcGuessGateway(
     ): GuessResult? =
         call {
             val response =
-                context
-                    .stub()
-                    .getMyGuessForPost(GetMyGuessForPostRequest.newBuilder().setPostId(postId).build())
+                stub.getMyGuessForPost(
+                    GetMyGuessForPostRequest
+                        .newBuilder()
+                        .setPostId(postId)
+                        .setActor(context.requireActorProto())
+                        .build(),
+                )
             response.result.takeIf { it.hasGuess() }?.toGuessResult()
         }
 
@@ -71,10 +72,13 @@ class GrpcGuessGateway(
             emptyList()
         } else {
             call {
-                context
-                    .stub()
+                stub
                     .batchGetMyGuessesForPosts(
-                        BatchGetMyGuessesForPostsRequest.newBuilder().addAllPostIds(postIds).build(),
+                        BatchGetMyGuessesForPostsRequest
+                            .newBuilder()
+                            .addAllPostIds(postIds)
+                            .setActor(context.requireActorProto())
+                            .build(),
                     ).resultsList
                     .map { it.toGuessResult() }
             }
@@ -85,10 +89,14 @@ class GrpcGuessGateway(
         postId: String,
     ): PostGuessStats =
         call {
-            context
-                .stub()
-                .getPostGuessStats(GetPostGuessStatsRequest.newBuilder().setPostId(postId).build())
-                .stats
+            stub
+                .getPostGuessStats(
+                    GetPostGuessStatsRequest
+                        .newBuilder()
+                        .setPostId(postId)
+                        .setActor(context.requireActorProto())
+                        .build(),
+                ).stats
                 .toPostGuessStats()
         }
 
@@ -97,10 +105,14 @@ class GrpcGuessGateway(
         userId: String,
     ): UserScoreSummary =
         call {
-            context
-                .stub()
-                .getUserScoreSummary(GetUserScoreSummaryRequest.newBuilder().setUserId(userId).build())
-                .summary
+            stub
+                .getUserScoreSummary(
+                    GetUserScoreSummaryRequest
+                        .newBuilder()
+                        .setUserId(userId)
+                        .setActor(context.requireActorProto())
+                        .build(),
+                ).summary
                 .toUserScoreSummary()
         }
 
@@ -110,7 +122,13 @@ class GrpcGuessGateway(
     ): PageResult<PostUserRankingEntry> =
         call {
             val response =
-                context.stub().listPostRankings(ListPostRankingsRequest.newBuilder().setPage(page.toProto()).build())
+                stub.listPostRankings(
+                    ListPostRankingsRequest
+                        .newBuilder()
+                        .setPage(page.toProto())
+                        .setActor(context.requireActorProto())
+                        .build(),
+                )
             PageResult(response.entriesList.map { it.toPostUserRankingEntry() }, response.pageInfo.toPageInfo())
         }
 
@@ -121,22 +139,18 @@ class GrpcGuessGateway(
     ): PageResult<GuessUserRankingEntry> =
         call {
             val response =
-                context
-                    .stub()
-                    .listGuessRankings(
-                        ListGuessRankingsRequest
-                            .newBuilder()
-                            .setMetric(metric.toGuessRankingMetric())
-                            .setPage(page.toProto())
-                            .build(),
-                    )
+                stub.listGuessRankings(
+                    ListGuessRankingsRequest
+                        .newBuilder()
+                        .setMetric(metric.toGuessRankingMetric())
+                        .setPage(page.toProto())
+                        .setActor(context.requireActorProto())
+                        .build(),
+                )
             PageResult(response.entriesList.map { it.toGuessUserRankingEntry() }, response.pageInfo.toPageInfo())
         }
 
     override fun close() = closeChannel(channel)
-
-    private fun ApiRequestContext.stub(): GuessServiceGrpcKt.GuessServiceCoroutineStub =
-        authHeaderInterceptor(this)?.let { stub.withInterceptors(it) } ?: stub
 
     companion object {
         fun fromEnvironment(): GrpcGuessGateway =
