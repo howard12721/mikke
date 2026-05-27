@@ -19,6 +19,7 @@ enum class MediaStatus {
 enum class MediaVariantKind {
     ORIGINAL,
     THUMBNAIL,
+    ICON,
     ;
 
     fun toDatabaseValue(): String = name

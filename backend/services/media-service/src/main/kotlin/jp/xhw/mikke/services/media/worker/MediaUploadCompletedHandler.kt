@@ -60,27 +60,27 @@ class MediaUploadCompletedHandler(
                 val media = mediaRepository.findById(mediaId)
                 when {
                     processedEventStore.exists(eventId) -> {
-                        ThumbnailWork.Done
+                        VariantWork.Done
                     }
 
                     media == null -> {
-                        ThumbnailWork.MarkProcessed(eventId, eventType)
+                        VariantWork.MarkProcessed(eventId, eventType)
                     }
 
                     media.status == MediaStatus.DELETED -> {
-                        ThumbnailWork.MarkProcessed(eventId, eventType)
+                        VariantWork.MarkProcessed(eventId, eventType)
                     }
 
                     media.status != MediaStatus.READY -> {
-                        ThumbnailWork.MarkProcessed(eventId, eventType)
+                        VariantWork.MarkProcessed(eventId, eventType)
                     }
 
                     media.objectKey != objectKey -> {
-                        ThumbnailWork.MarkProcessed(eventId, eventType)
+                        VariantWork.MarkProcessed(eventId, eventType)
                     }
 
                     media.contentLengthBytes > maxOriginalBytes -> {
-                        ThumbnailWork.FailThumbnail(
+                        VariantWork.FailVariant(
                             eventId = eventId,
                             eventType = eventType,
                             mediaId = mediaId,
@@ -89,18 +89,19 @@ class MediaUploadCompletedHandler(
                     }
 
                     else -> {
-                        val thumbnail =
-                            media.variants.firstOrNull { it.variant == MediaVariantKind.THUMBNAIL }
-                                ?: return@runInTransaction ThumbnailWork.MarkProcessed(eventId, eventType)
-                        if (thumbnail.status == MediaVariantStatus.READY || thumbnail.status == MediaVariantStatus.FAILED) {
-                            ThumbnailWork.MarkProcessed(eventId, eventType)
+                        val generatedVariant =
+                            media.variants.firstOrNull { it.variant != MediaVariantKind.ORIGINAL }
+                                ?: return@runInTransaction VariantWork.MarkProcessed(eventId, eventType)
+                        if (generatedVariant.status == MediaVariantStatus.READY || generatedVariant.status == MediaVariantStatus.FAILED) {
+                            VariantWork.MarkProcessed(eventId, eventType)
                         } else {
-                            ThumbnailWork.Generate(
+                            VariantWork.Generate(
                                 eventId = eventId,
                                 eventType = eventType,
                                 mediaId = mediaId,
                                 originalObjectKey = media.objectKey,
-                                thumbnailObjectKey = thumbnail.objectKey,
+                                targetVariantKind = generatedVariant.variant,
+                                targetObjectKey = generatedVariant.objectKey,
                             )
                         }
                     }
@@ -108,16 +109,16 @@ class MediaUploadCompletedHandler(
             }
 
         when (work) {
-            ThumbnailWork.Done -> {
+            VariantWork.Done -> {
                 Unit
             }
 
-            is ThumbnailWork.MarkProcessed -> {
+            is VariantWork.MarkProcessed -> {
                 markProcessed(work.eventId, work.eventType)
             }
 
-            is ThumbnailWork.FailThumbnail -> {
-                markThumbnailFailed(
+            is VariantWork.FailVariant -> {
+                markVariantFailed(
                     work.mediaId,
                     work.eventId,
                     work.eventType,
@@ -125,18 +126,18 @@ class MediaUploadCompletedHandler(
                 )
             }
 
-            is ThumbnailWork.Generate -> {
-                generateThumbnail(work)
+            is VariantWork.Generate -> {
+                generateVariant(work)
             }
         }
     }
 
-    private fun generateThumbnail(work: ThumbnailWork.Generate) {
+    private fun generateVariant(work: VariantWork.Generate) {
         val original =
             try {
                 objectStorageClient.getObject(work.originalObjectKey, maxContentLengthBytes = maxOriginalBytes)
                     ?: run {
-                        markThumbnailFailed(
+                        markVariantFailed(
                             mediaId = work.mediaId,
                             eventId = work.eventId,
                             eventType = work.eventType,
@@ -145,7 +146,7 @@ class MediaUploadCompletedHandler(
                         return
                     }
             } catch (e: ObjectTooLargeException) {
-                markThumbnailFailed(
+                markVariantFailed(
                     work.mediaId,
                     work.eventId,
                     work.eventType,
@@ -154,22 +155,24 @@ class MediaUploadCompletedHandler(
                 return
             }
 
-        val thumbnail =
+        val generated =
             try {
                 thumbnailGenerator.generateWebp(
                     sourceBytes = original.bytes,
                     maxSizePx = maxSizePx,
+                    targetAspectWidth = work.targetVariantKind.aspectWidth(),
+                    targetAspectHeight = work.targetVariantKind.aspectHeight(),
                 )
             } catch (e: UnsupportedImageException) {
-                markThumbnailFailed(work.mediaId, work.eventId, work.eventType, e.message ?: "Unsupported image")
+                markVariantFailed(work.mediaId, work.eventId, work.eventType, e.message ?: "Unsupported image")
                 return
             }
 
         val stored =
             objectStorageClient.putObject(
-                objectKey = work.thumbnailObjectKey,
+                objectKey = work.targetObjectKey,
                 contentType = THUMBNAIL_CONTENT_TYPE,
-                bytes = thumbnail.bytes,
+                bytes = generated.bytes,
             )
 
         transactionRunner.runInTransaction {
@@ -183,35 +186,35 @@ class MediaUploadCompletedHandler(
                 return@runInTransaction
             }
 
-            val currentThumbnail =
-                current.variants.firstOrNull { it.variant == MediaVariantKind.THUMBNAIL }
+            val currentGeneratedVariant =
+                current.variants.firstOrNull { it.variant == work.targetVariantKind }
                     ?: run {
                         processedEventStore.tryMarkProcessed(work.eventId, work.eventType)
                         return@runInTransaction
                     }
 
-            if (currentThumbnail.status == MediaVariantStatus.READY) {
+            if (currentGeneratedVariant.status == MediaVariantStatus.READY) {
                 processedEventStore.tryMarkProcessed(work.eventId, work.eventType)
                 return@runInTransaction
             }
 
             val now = clock.now()
-            val readyThumbnail =
-                currentThumbnail.copy(
+            val readyVariant =
+                currentGeneratedVariant.copy(
                     status = MediaVariantStatus.READY,
-                    width = thumbnail.width,
-                    height = thumbnail.height,
+                    width = generated.width,
+                    height = generated.height,
                     contentType = stored.contentType,
                     contentLengthBytes = stored.contentLengthBytes,
                     readyAt = now,
                 )
-            mediaRepository.updateVariant(readyThumbnail)
-            mediaOutbox.appendThumbnailReady(readyThumbnail)
+            mediaRepository.updateVariant(readyVariant)
+            mediaOutbox.appendVariantReady(readyVariant)
             processedEventStore.tryMarkProcessed(work.eventId, work.eventType)
         }
     }
 
-    private fun markThumbnailFailed(
+    private fun markVariantFailed(
         mediaId: MediaId,
         eventId: Uuid,
         eventType: String,
@@ -223,10 +226,10 @@ class MediaUploadCompletedHandler(
             }
 
             val current = mediaRepository.findById(mediaId)
-            val currentThumbnail = current?.variants?.firstOrNull { it.variant == MediaVariantKind.THUMBNAIL }
-            if (currentThumbnail != null && currentThumbnail.status == MediaVariantStatus.PENDING) {
+            val currentGeneratedVariant = current?.variants?.firstOrNull { it.variant != MediaVariantKind.ORIGINAL }
+            if (currentGeneratedVariant != null && currentGeneratedVariant.status == MediaVariantStatus.PENDING) {
                 mediaRepository.updateVariant(
-                    currentThumbnail.copy(
+                    currentGeneratedVariant.copy(
                         status = MediaVariantStatus.FAILED,
                         readyAt = clock.now(),
                     ),
@@ -239,7 +242,7 @@ class MediaUploadCompletedHandler(
                 lastError = reason,
             )
         }
-        logger.warning("Marked media thumbnail generation failed for event $eventId: $reason")
+        logger.warning("Marked media derived-image generation failed for event $eventId: $reason")
     }
 
     private fun markProcessed(
@@ -251,34 +254,49 @@ class MediaUploadCompletedHandler(
         }
     }
 
-    private sealed interface ThumbnailWork {
-        data object Done : ThumbnailWork
+    private sealed interface VariantWork {
+        data object Done : VariantWork
 
         data class MarkProcessed(
             val eventId: Uuid,
             val eventType: String,
-        ) : ThumbnailWork
+        ) : VariantWork
 
         data class Generate(
             val eventId: Uuid,
             val eventType: String,
             val mediaId: MediaId,
             val originalObjectKey: String,
-            val thumbnailObjectKey: String,
-        ) : ThumbnailWork
+            val targetVariantKind: MediaVariantKind,
+            val targetObjectKey: String,
+        ) : VariantWork
 
-        data class FailThumbnail(
+        data class FailVariant(
             val eventId: Uuid,
             val eventType: String,
             val mediaId: MediaId,
             val reason: String,
-        ) : ThumbnailWork
+        ) : VariantWork
     }
 
     private companion object {
         const val THUMBNAIL_CONTENT_TYPE = "image/webp"
     }
 }
+
+private fun MediaVariantKind.aspectWidth(): Int =
+    when (this) {
+        MediaVariantKind.THUMBNAIL -> 16
+        MediaVariantKind.ICON -> 1
+        MediaVariantKind.ORIGINAL -> error("ORIGINAL variant does not have derived aspect ratio")
+    }
+
+private fun MediaVariantKind.aspectHeight(): Int =
+    when (this) {
+        MediaVariantKind.THUMBNAIL -> 9
+        MediaVariantKind.ICON -> 1
+        MediaVariantKind.ORIGINAL -> error("ORIGINAL variant does not have derived aspect ratio")
+    }
 
 object MediaProcessedEventsTable : ProcessedEventsTable("media_processed_events") {
     val failedAt = timestamp("failed_at").nullable()

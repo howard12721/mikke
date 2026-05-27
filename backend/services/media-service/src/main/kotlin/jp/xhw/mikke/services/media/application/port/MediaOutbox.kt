@@ -13,7 +13,7 @@ interface MediaOutbox {
 
     fun appendUploadCompleted(media: MediaRecord)
 
-    fun appendThumbnailReady(variant: MediaVariantRecord)
+    fun appendVariantReady(variant: MediaVariantRecord)
 
     fun appendDeleted(
         mediaId: MediaId,

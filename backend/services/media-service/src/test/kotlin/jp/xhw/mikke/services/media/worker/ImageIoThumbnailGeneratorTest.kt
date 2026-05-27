@@ -15,7 +15,13 @@ class ImageIoThumbnailGeneratorTest {
         val sourceBytes = pngBytes(width = 1200, height = 600)
         val generator = ImageIoThumbnailGenerator()
 
-        val thumbnail = generator.generateWebp(sourceBytes = sourceBytes, maxSizePx = 512)
+        val thumbnail =
+            generator.generateWebp(
+                sourceBytes = sourceBytes,
+                maxSizePx = 512,
+                targetAspectWidth = 16,
+                targetAspectHeight = 9,
+            )
 
         assertEquals(512, thumbnail.width)
         assertEquals(288, thumbnail.height)
@@ -28,7 +34,13 @@ class ImageIoThumbnailGeneratorTest {
         val sourceBytes = pngBytes(width = 320, height = 240)
         val generator = ImageIoThumbnailGenerator()
 
-        val thumbnail = generator.generateWebp(sourceBytes = sourceBytes, maxSizePx = 512)
+        val thumbnail =
+            generator.generateWebp(
+                sourceBytes = sourceBytes,
+                maxSizePx = 512,
+                targetAspectWidth = 16,
+                targetAspectHeight = 9,
+            )
 
         assertEquals(320, thumbnail.width)
         assertEquals(180, thumbnail.height)
@@ -41,7 +53,12 @@ class ImageIoThumbnailGeneratorTest {
 
         val error =
             assertThrows(UnsupportedImageException::class.java) {
-                generator.generateWebp(sourceBytes = sourceBytes, maxSizePx = 512)
+                generator.generateWebp(
+                    sourceBytes = sourceBytes,
+                    maxSizePx = 512,
+                    targetAspectWidth = 16,
+                    targetAspectHeight = 9,
+                )
             }
 
         assertEquals("Image dimensions exceed thumbnail input limit", error.message)
@@ -53,10 +70,33 @@ class ImageIoThumbnailGeneratorTest {
 
         val error =
             assertThrows(UnsupportedImageException::class.java) {
-                generator.generateWebp(sourceBytes = byteArrayOf(1, 2, 3), maxSizePx = 512)
+                generator.generateWebp(
+                    sourceBytes = byteArrayOf(1, 2, 3),
+                    maxSizePx = 512,
+                    targetAspectWidth = 16,
+                    targetAspectHeight = 9,
+                )
             }
 
         assertEquals("Unsupported image format", error.message)
+    }
+
+    @Test
+    fun `generateWebp crops to square for icon variant`() {
+        assumeTrue(ImageIO.getImageWritersByMIMEType("image/webp").hasNext(), "WebP writer unavailable")
+        val sourceBytes = pngBytes(width = 800, height = 600)
+        val generator = ImageIoThumbnailGenerator()
+
+        val icon =
+            generator.generateWebp(
+                sourceBytes = sourceBytes,
+                maxSizePx = 256,
+                targetAspectWidth = 1,
+                targetAspectHeight = 1,
+            )
+
+        assertEquals(256, icon.width)
+        assertEquals(256, icon.height)
     }
 
     private fun pngBytes(

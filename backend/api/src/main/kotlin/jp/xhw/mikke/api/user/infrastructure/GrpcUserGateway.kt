@@ -134,6 +134,7 @@ private fun User.toCurrentUser(): CurrentUser =
         createdAt = createdAt.toIsoString(),
         updatedAt = updatedAt.toIsoString(),
         avatarMediaId = avatarMediaId.takeIf { it.isNotEmpty() },
+        avatarUrl = null,
     )
 
 private fun ProtoPublicUser.toPublicUser(): PublicUser =
@@ -143,4 +144,5 @@ private fun ProtoPublicUser.toPublicUser(): PublicUser =
         displayName = displayName,
         status = status.name.removePrefix("USER_STATUS_"),
         avatarMediaId = avatarMediaId.takeIf { it.isNotEmpty() },
+        avatarUrl = null,
     )

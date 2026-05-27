@@ -100,7 +100,7 @@ class ExposedMediaOutboxTest {
         }
 
     @Test
-    fun `append thumbnail ready writes outbox entry with payload`() =
+    fun `append variant ready writes thumbnail event with payload`() =
         withMediaOutboxTable {
             val mediaId = MediaId(Uuid.parse("018f2a58-4d65-7c0f-8e01-451a05c0f001"))
             val readyAt = Instant.parse("2026-05-18T04:05:06.123456Z")
@@ -120,7 +120,7 @@ class ExposedMediaOutboxTest {
                 )
             val outbox = ExposedMediaOutbox(FixedClock(Instant.parse("2026-05-18T04:05:07Z")))
 
-            outbox.appendThumbnailReady(variant)
+            outbox.appendVariantReady(variant)
 
             val row = MediaOutboxTable.selectAll().single()
             assertEquals(MediaEventTypes.THUMBNAIL_READY, row[MediaOutboxTable.eventType])
@@ -166,7 +166,19 @@ class ExposedMediaOutboxTest {
         }
 
     @Test
-    fun `append thumbnail ready rejects missing dimensions`() =
+    fun `append variant ready emits icon event for icon variant`() =
+        withMediaOutboxTable {
+            val outbox = ExposedMediaOutbox(FixedClock(Instant.parse("2026-05-18T04:05:07Z")))
+            val variant = thumbnailVariant(variantKind = MediaVariantKind.ICON)
+
+            outbox.appendVariantReady(variant)
+
+            val row = MediaOutboxTable.selectAll().single()
+            assertEquals(MediaEventTypes.ICON_READY, row[MediaOutboxTable.eventType])
+        }
+
+    @Test
+    fun `append variant ready rejects missing dimensions`() =
         withMediaOutboxTable {
             val outbox = ExposedMediaOutbox(FixedClock(Instant.parse("2026-05-18T04:05:07Z")))
             val variant =
@@ -176,7 +188,7 @@ class ExposedMediaOutboxTest {
                 )
 
             assertThrows(IllegalArgumentException::class.java) {
-                outbox.appendThumbnailReady(variant)
+                outbox.appendVariantReady(variant)
             }
         }
 
@@ -215,14 +227,15 @@ class ExposedMediaOutboxTest {
         )
 
     private fun thumbnailVariant(
+        variantKind: MediaVariantKind = MediaVariantKind.THUMBNAIL,
         width: Int? = 512,
         height: Int? = 384,
     ): MediaVariantRecord =
         MediaVariantRecord(
             id = MediaVariantId(Uuid.parse("018f2a58-4d65-7c0f-8e01-451a05c0f002")),
             mediaId = MediaId(Uuid.parse("018f2a58-4d65-7c0f-8e01-451a05c0f001")),
-            variant = MediaVariantKind.THUMBNAIL,
-            objectKey = "media/thumbnail/thumb-key",
+            variant = variantKind,
+            objectKey = if (variantKind == MediaVariantKind.ICON) "media/icon/icon-key" else "media/thumbnail/thumb-key",
             status = MediaVariantStatus.READY,
             width = width,
             height = height,

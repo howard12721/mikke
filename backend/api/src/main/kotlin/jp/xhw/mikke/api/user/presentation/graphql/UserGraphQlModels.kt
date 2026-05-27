@@ -7,7 +7,7 @@ data class User(
     val username: String,
     val displayName: String,
     val status: String,
-    val avatarMediaId: String?,
+    val avatarUrl: String?,
 )
 
 data class CurrentUser(
@@ -18,7 +18,7 @@ data class CurrentUser(
     val status: String,
     val createdAt: String,
     val updatedAt: String,
-    val avatarMediaId: String?,
+    val avatarUrl: String?,
 )
 
 data class UserSearchPayload(
@@ -42,7 +42,13 @@ data class ChangePasswordPayload(
 )
 
 fun jp.xhw.mikke.api.user.application.PublicUser.toGraphQl(): User =
-    User(id = id, username = username, displayName = displayName, status = status, avatarMediaId = avatarMediaId)
+    User(
+        id = id,
+        username = username,
+        displayName = displayName,
+        status = status,
+        avatarUrl = avatarUrl,
+    )
 
 fun jp.xhw.mikke.api.user.application.CurrentUser.toGraphQl(): CurrentUser =
     CurrentUser(
@@ -53,5 +59,5 @@ fun jp.xhw.mikke.api.user.application.CurrentUser.toGraphQl(): CurrentUser =
         status = status,
         createdAt = createdAt,
         updatedAt = updatedAt,
-        avatarMediaId = avatarMediaId,
+        avatarUrl = avatarUrl,
     )

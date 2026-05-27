@@ -12,6 +12,10 @@ import jp.xhw.mikke.api.common.application.PageInput
 import jp.xhw.mikke.api.common.application.PageResult
 import jp.xhw.mikke.api.friendship.application.*
 import jp.xhw.mikke.api.graphql.ApiRequestContext
+import jp.xhw.mikke.api.media.application.Media
+import jp.xhw.mikke.api.media.application.MediaGateway
+import jp.xhw.mikke.api.media.application.MediaUploadUrl
+import jp.xhw.mikke.api.media.application.UploadCheck
 import jp.xhw.mikke.api.testsupport.testApiDependencies
 import jp.xhw.mikke.api.user.application.CurrentUser
 import jp.xhw.mikke.api.user.application.PublicUser
@@ -43,7 +47,7 @@ class FriendshipGraphQlTest {
                                 authApiService = base.authApiService,
                                 sessionAuthenticator = base.sessionAuthenticator,
                                 touchScheduler = base.touchScheduler,
-                                userApiService = UserApiService(userGateway),
+                                userApiService = UserApiService(userGateway, NoopMediaGateway),
                                 friendshipApiService = FriendshipApiService(friendshipGateway),
                                 touchScope = null,
                             )
@@ -103,8 +107,8 @@ private class RecordingUserGateway : UserGateway {
 
     private val users =
         listOf(
-            PublicUser("bob-id", "bob", "Bob", "ACTIVE", null),
-            PublicUser("carol-id", "carol", "Carol", "ACTIVE", null),
+            PublicUser("bob-id", "bob", "Bob", "ACTIVE", null, null),
+            PublicUser("carol-id", "carol", "Carol", "ACTIVE", null, null),
         ).associateBy { it.id }
 
     override suspend fun me(context: ApiRequestContext): CurrentUser = error("Not implemented")
@@ -230,4 +234,32 @@ private object NoopIdentityAuthGateway : IdentityAuthGateway {
     override suspend fun register(command: RegisterCommand): RegisterResult = RegisterResult(user, session)
 
     override suspend fun logout(command: LogoutCommand) = Unit
+}
+
+private object NoopMediaGateway : MediaGateway {
+    override suspend fun createUploadUrl(
+        context: ApiRequestContext,
+        contentType: String,
+        contentLengthBytes: Long,
+        originalFileName: String?,
+        generatedVariant: jp.xhw.mikke.api.media.application.GeneratedVariant,
+    ): MediaUploadUrl = error("Not implemented")
+
+    override suspend fun checkUpload(
+        context: ApiRequestContext,
+        mediaId: String,
+        objectKey: String,
+    ): UploadCheck = error("Not implemented")
+
+    override suspend fun getMedia(
+        context: ApiRequestContext,
+        mediaId: String,
+    ): Media = error("Not implemented")
+
+    override suspend fun batchGetMedia(
+        context: ApiRequestContext,
+        mediaIds: List<String>,
+    ): List<Media> = emptyList()
+
+    override fun close() = Unit
 }

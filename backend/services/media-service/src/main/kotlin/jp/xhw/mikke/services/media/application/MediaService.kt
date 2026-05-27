@@ -15,6 +15,7 @@ data class CreateUploadUrlCommand(
     val contentLengthBytes: Long,
     val originalFileName: String?,
     val uploaderUserId: UploaderUserId,
+    val generatedVariant: MediaVariantKind,
 )
 
 data class CreateUploadUrlResult(
@@ -56,6 +57,9 @@ class MediaService(
 ) {
     fun createUploadUrl(command: CreateUploadUrlCommand): CreateUploadUrlResult =
         transactionRunner.runInTransaction {
+            require(command.generatedVariant != MediaVariantKind.ORIGINAL) {
+                "generatedVariant must be a derived variant"
+            }
             val contentType = command.contentType.trim()
             MediaContentPolicy.validateContentType(contentType)
             MediaContentPolicy.validateContentLength(command.contentLengthBytes)
@@ -63,7 +67,7 @@ class MediaService(
             val now = clock.now()
             val mediaId = MediaId(Uuid.random())
             val originalObjectKey = MediaObjectKeys.forVariant(MediaVariantKind.ORIGINAL)
-            val thumbnailObjectKey = MediaObjectKeys.forVariant(MediaVariantKind.THUMBNAIL)
+            val generatedObjectKey = MediaObjectKeys.forVariant(command.generatedVariant)
 
             val originalVariant =
                 MediaVariantRecord(
@@ -80,12 +84,12 @@ class MediaService(
                     readyAt = null,
                 )
 
-            val thumbnailVariant =
+            val generatedVariant =
                 MediaVariantRecord(
                     id = MediaVariantId(Uuid.random()),
                     mediaId = mediaId,
-                    variant = MediaVariantKind.THUMBNAIL,
-                    objectKey = thumbnailObjectKey,
+                    variant = command.generatedVariant,
+                    objectKey = generatedObjectKey,
                     status = MediaVariantStatus.PENDING,
                     width = null,
                     height = null,
@@ -108,7 +112,7 @@ class MediaService(
                     createdAt = now,
                     uploadedAt = null,
                     deletedAt = null,
-                    variants = listOf(originalVariant, thumbnailVariant),
+                    variants = listOf(originalVariant, generatedVariant),
                 )
 
             mediaRepository.insert(media)

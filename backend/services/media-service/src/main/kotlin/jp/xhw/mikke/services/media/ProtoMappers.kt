@@ -14,7 +14,9 @@ fun MediaView.toProto(): MediaProto =
         .setObjectKey(record.objectKey)
         .setOriginalUrl(deliveryUrls.originalUrl)
         .setThumbnailUrl(deliveryUrls.thumbnailUrl)
-        .setStatus(record.status.toProto())
+        .apply {
+            deliveryUrls.iconUrl?.let { setIconUrl(it) }
+        }.setStatus(record.status.toProto())
         .setContentType(record.contentType)
         .setContentLengthBytes(record.contentLengthBytes)
         .apply {

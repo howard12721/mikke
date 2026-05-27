@@ -8,6 +8,7 @@ import kotlin.time.Duration
 data class MediaDeliveryUrls(
     val originalUrl: String,
     val thumbnailUrl: String,
+    val iconUrl: String?,
 )
 
 class MediaDeliveryUrlBuilder(
@@ -18,19 +19,28 @@ class MediaDeliveryUrlBuilder(
         val originalVariant =
             media.variants.first { it.variant == MediaVariantKind.ORIGINAL }
         val thumbnailVariant =
-            media.variants.first { it.variant == MediaVariantKind.THUMBNAIL }
+            media.variants.firstOrNull { it.variant == MediaVariantKind.THUMBNAIL }
+        val iconVariant =
+            media.variants.firstOrNull { it.variant == MediaVariantKind.ICON }
 
         val originalUrl = sign(originalVariant.objectKey)
         val thumbnailUrl =
-            if (thumbnailVariant.status == MediaVariantStatus.READY) {
+            if (thumbnailVariant?.status == MediaVariantStatus.READY) {
                 sign(thumbnailVariant.objectKey)
             } else {
                 originalUrl
+            }
+        val iconUrl =
+            if (iconVariant?.status == MediaVariantStatus.READY) {
+                sign(iconVariant.objectKey)
+            } else {
+                null
             }
 
         return MediaDeliveryUrls(
             originalUrl = originalUrl,
             thumbnailUrl = thumbnailUrl,
+            iconUrl = iconUrl,
         )
     }
 

@@ -35,6 +35,58 @@ class MediaDeliveryUrlBuilderTest {
         assertEquals("https://signed.example/media/test/thumbnail?expires=900", urls.thumbnailUrl)
     }
 
+    @Test
+    fun `falls back to original when thumbnail variant is absent`() {
+        val mediaId = MediaId(Uuid.parse("00000000-0000-4000-8000-000000000001"))
+        val now = Instant.fromEpochSeconds(1_700_000_000, 0)
+        val media =
+            MediaRecord(
+                id = mediaId,
+                uploaderUserId = UploaderUserId(Uuid.parse("00000000-0000-4000-8000-000000000002")),
+                objectKey = "media/test/original",
+                contentType = "image/jpeg",
+                contentLengthBytes = 1024,
+                etag = null,
+                status = MediaStatus.PENDING_UPLOAD,
+                uploadMethod = UploadMethod.PUT,
+                createdAt = now,
+                uploadedAt = null,
+                deletedAt = null,
+                variants =
+                    listOf(
+                        MediaVariantRecord(
+                            id = MediaVariantId(Uuid.random()),
+                            mediaId = mediaId,
+                            variant = MediaVariantKind.ORIGINAL,
+                            objectKey = "media/test/original",
+                            status = MediaVariantStatus.PENDING,
+                            width = null,
+                            height = null,
+                            contentType = "image/jpeg",
+                            contentLengthBytes = null,
+                            createdAt = now,
+                            readyAt = null,
+                        ),
+                        MediaVariantRecord(
+                            id = MediaVariantId(Uuid.random()),
+                            mediaId = mediaId,
+                            variant = MediaVariantKind.ICON,
+                            objectKey = "media/test/icon",
+                            status = MediaVariantStatus.READY,
+                            width = null,
+                            height = null,
+                            contentType = "image/jpeg",
+                            contentLengthBytes = null,
+                            createdAt = now,
+                            readyAt = null,
+                        ),
+                    ),
+            )
+
+        val urls = builder.buildForMedia(media)
+        assertEquals("https://signed.example/media/test/original?expires=900", urls.thumbnailUrl)
+    }
+
     private fun sampleMedia(thumbnailStatus: MediaVariantStatus): MediaRecord {
         val mediaId = MediaId(Uuid.parse("00000000-0000-4000-8000-000000000001"))
         val now = Instant.fromEpochSeconds(1_700_000_000, 0)
