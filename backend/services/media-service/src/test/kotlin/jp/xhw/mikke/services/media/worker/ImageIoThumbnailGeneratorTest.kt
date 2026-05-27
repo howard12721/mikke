@@ -1,7 +1,6 @@
 package jp.xhw.mikke.services.media.worker
 
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import java.awt.Color
 import java.awt.image.BufferedImage
@@ -11,9 +10,8 @@ import javax.imageio.ImageIO
 class ImageIoThumbnailGeneratorTest {
     @Test
     fun `generateWebp resizes and center crops to 16 by 9`() {
-        assumeTrue(ImageIO.getImageWritersByMIMEType("image/webp").hasNext(), "WebP writer unavailable")
         val sourceBytes = pngBytes(width = 1200, height = 600)
-        val generator = ImageIoThumbnailGenerator()
+        val generator = ScrimageThumbnailGenerator()
 
         val thumbnail =
             generator.generateWebp(
@@ -30,9 +28,8 @@ class ImageIoThumbnailGeneratorTest {
 
     @Test
     fun `generateWebp keeps small images without upscaling and crops 16 by 9`() {
-        assumeTrue(ImageIO.getImageWritersByMIMEType("image/webp").hasNext(), "WebP writer unavailable")
         val sourceBytes = pngBytes(width = 320, height = 240)
-        val generator = ImageIoThumbnailGenerator()
+        val generator = ScrimageThumbnailGenerator()
 
         val thumbnail =
             generator.generateWebp(
@@ -49,7 +46,7 @@ class ImageIoThumbnailGeneratorTest {
     @Test
     fun `generateWebp rejects images above source pixel limit before decoding`() {
         val sourceBytes = pngBytes(width = 20, height = 20)
-        val generator = ImageIoThumbnailGenerator(maxSourcePixels = 100)
+        val generator = ScrimageThumbnailGenerator(maxSourcePixels = 100)
 
         val error =
             assertThrows(UnsupportedImageException::class.java) {
@@ -66,7 +63,7 @@ class ImageIoThumbnailGeneratorTest {
 
     @Test
     fun `generateWebp preserves decode failure diagnostic`() {
-        val generator = ImageIoThumbnailGenerator()
+        val generator = ScrimageThumbnailGenerator()
 
         val error =
             assertThrows(UnsupportedImageException::class.java) {
@@ -83,9 +80,8 @@ class ImageIoThumbnailGeneratorTest {
 
     @Test
     fun `generateWebp crops to square for icon variant`() {
-        assumeTrue(ImageIO.getImageWritersByMIMEType("image/webp").hasNext(), "WebP writer unavailable")
         val sourceBytes = pngBytes(width = 800, height = 600)
-        val generator = ImageIoThumbnailGenerator()
+        val generator = ScrimageThumbnailGenerator()
 
         val icon =
             generator.generateWebp(

@@ -25,18 +25,15 @@ import jp.xhw.mikke.services.media.infrastructure.ObjectStorageConfig
 import jp.xhw.mikke.services.media.infrastructure.S3ObjectStorageClient
 import jp.xhw.mikke.services.media.infrastructure.outbox.ExposedMediaOutbox
 import jp.xhw.mikke.services.media.infrastructure.outbox.MediaOutboxTable
-import jp.xhw.mikke.services.media.worker.ImageIoThumbnailGenerator
 import jp.xhw.mikke.services.media.worker.MediaProcessedEventsTable
 import jp.xhw.mikke.services.media.worker.MediaUploadCompletedHandler
+import jp.xhw.mikke.services.media.worker.ScrimageThumbnailGenerator
 import java.net.InetAddress
 import java.time.Duration
-import javax.imageio.ImageIO
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 fun main() {
-    ImageIO.setUseCache(false)
-
     val database = connectMariaDbFromEnv(defaultDatabase = "media_service")
     val redis = connectRedisFromEnv()
     val mediaRepository = ExposedMediaRepository()
@@ -109,7 +106,7 @@ fun main() {
                                 objectStorageClient = objectStorageClient,
                                 transactionRunner = transactionRunner,
                                 processedEventStore = ProcessedEventStore(MediaProcessedEventsTable),
-                                thumbnailGenerator = ImageIoThumbnailGenerator(maxSourcePixels = maxThumbnailSourcePixels),
+                                thumbnailGenerator = ScrimageThumbnailGenerator(maxSourcePixels = maxThumbnailSourcePixels),
                                 maxSizePx = System.getenv("MEDIA_THUMBNAIL_MAX_SIZE_PX")?.toIntOrNull() ?: 512,
                                 maxOriginalBytes =
                                     System.getenv("MEDIA_THUMBNAIL_MAX_ORIGINAL_BYTES")?.toLongOrNull()

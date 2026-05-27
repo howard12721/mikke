@@ -34,7 +34,7 @@ class MediaUploadCompletedHandler(
     private val objectStorageClient: ObjectStorageClient,
     private val transactionRunner: TransactionRunner,
     private val processedEventStore: ProcessedEventStore,
-    private val thumbnailGenerator: ThumbnailGenerator = ImageIoThumbnailGenerator(),
+    private val thumbnailGenerator: ThumbnailGenerator = ScrimageThumbnailGenerator(),
     private val maxSizePx: Int = 512,
     private val maxOriginalBytes: Long = 20L * 1024L * 1024L,
     private val clock: Clock = Clock.System,
