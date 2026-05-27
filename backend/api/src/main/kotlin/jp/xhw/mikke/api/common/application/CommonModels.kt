@@ -2,7 +2,7 @@ package jp.xhw.mikke.api.common.application
 
 import jp.xhw.mikke.api.http.ApiErrorCode
 import jp.xhw.mikke.api.http.ApiHttpException
-import java.util.UUID
+import java.util.*
 
 data class PageInput(
     val pageSize: Int?,

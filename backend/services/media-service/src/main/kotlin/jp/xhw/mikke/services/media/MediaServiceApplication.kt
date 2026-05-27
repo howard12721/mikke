@@ -1,21 +1,17 @@
 package jp.xhw.mikke.services.media
 
+import io.grpc.health.v1.HealthGrpc
 import jp.xhw.mikke.events.media.MediaEventTypes
 import jp.xhw.mikke.events.media.MediaUploadCompletedPayload
-import jp.xhw.mikke.platform.auth.grpc.GrpcAuthServerInterceptor
-import jp.xhw.mikke.platform.auth.grpc.bearerToken
-import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
+import jp.xhw.mikke.media.v1.MediaServiceGrpc
+import jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
 import jp.xhw.mikke.platform.database.connectMariaDbFromEnv
 import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
 import jp.xhw.mikke.platform.events.ProcessedEventStore
 import jp.xhw.mikke.platform.events.subscription.EventHandlerRegistration
 import jp.xhw.mikke.platform.events.subscription.RedisDeadLetterSink
 import jp.xhw.mikke.platform.events.subscription.RedisEventSubscription
-import jp.xhw.mikke.platform.grpc.GrpcServerExceptionHandling
-import jp.xhw.mikke.platform.grpc.InternalRpcServerInterceptor
-import jp.xhw.mikke.platform.grpc.grpcServer
-import jp.xhw.mikke.platform.grpc.installGrpcHealth
-import jp.xhw.mikke.platform.grpc.startAndAwait
+import jp.xhw.mikke.platform.grpc.*
 import jp.xhw.mikke.platform.outbox.OutboxRelay
 import jp.xhw.mikke.platform.outbox.RedisOutboxPublisher
 import jp.xhw.mikke.platform.redis.RedisStreamConsumerGroup
@@ -62,7 +58,6 @@ fun main() {
             transactionRunner = transactionRunner,
         )
     val mediaServiceRpc = MediaServiceRpc(mediaService = mediaApplicationService)
-    val tokenService = JwtTokenService(secret = System.getenv("IDENTITY_JWT_SECRET") ?: "dev-identity-secret")
     val mediaEventsStream = System.getenv("MEDIA_EVENTS_STREAM") ?: "mikke.media.events"
     val instanceId = mediaServiceInstanceId()
     val outboxRelay =
@@ -167,17 +162,27 @@ fun main() {
             ),
     ) {
         installGrpcHealth(serviceName = "media-service")
-        intercept(InternalRpcServerInterceptor())
-        intercept(
-            GrpcAuthServerInterceptor(
-                authenticator = { headers ->
-                    headers.bearerToken()?.let(tokenService::authenticateAccessToken)
-                },
-                optional = true,
-            ),
-        )
+        intercept(InternalRpcServerInterceptor(methodAuthPolicies = mediaGrpcAuthPolicies()))
         addService(mediaServiceRpc)
     }.startAndAwait()
+}
+
+fun mediaGrpcAuthPolicies(): Map<String, GrpcEndpointAuthPolicy> {
+    val internalRequired =
+        listOf(
+            MediaServiceGrpc.getCreateUploadUrlMethod(),
+            MediaServiceGrpc.getCheckUploadMethod(),
+            MediaServiceGrpc.getBatchGetMediaMethod(),
+            MediaServiceGrpc.getDeleteMediaMethod(),
+        ).associate { method -> method.fullMethodName to GrpcEndpointAuthPolicy.internalRequired("api") }
+
+    return internalRequired +
+        mapOf(
+            MediaServiceGrpc.getGetMediaMethod().fullMethodName to
+                GrpcEndpointAuthPolicy.internalRequired("api", "post-service"),
+            HealthGrpc.getCheckMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
+            HealthGrpc.getWatchMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
+        )
 }
 
 private fun mediaServiceInstanceId(): String =

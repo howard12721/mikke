@@ -1,37 +1,33 @@
 package jp.xhw.mikke.services.identity.application.service
 
-import jp.xhw.mikke.platform.auth.AuthenticatedPrincipal
-import jp.xhw.mikke.platform.auth.IssuedAuthSession
-import jp.xhw.mikke.platform.auth.IssuedToken
+import jp.xhw.mikke.platform.auth.IssuedClientSession
 import jp.xhw.mikke.platform.auth.PasswordPolicy
-import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
+import jp.xhw.mikke.platform.auth.session.SessionId
+import jp.xhw.mikke.platform.auth.session.SessionRecordCodec
+import jp.xhw.mikke.platform.auth.session.SessionValidation
 import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.pagination.PageSlice
 import jp.xhw.mikke.platform.pagination.ValidatedPageRequest
 import jp.xhw.mikke.services.identity.application.command.*
-import jp.xhw.mikke.services.identity.application.exception.InvalidCredentialsException
-import jp.xhw.mikke.services.identity.application.exception.InvalidIdentityInputException
-import jp.xhw.mikke.services.identity.application.exception.InvalidRefreshTokenException
-import jp.xhw.mikke.services.identity.application.exception.UserNotFoundException
+import jp.xhw.mikke.services.identity.application.exception.*
 import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
+import jp.xhw.mikke.services.identity.application.port.ClientSessionStore
 import jp.xhw.mikke.services.identity.application.port.IdentityUserOutbox
 import jp.xhw.mikke.services.identity.application.port.IdentityUserRepository
-import jp.xhw.mikke.services.identity.application.port.RefreshSessionRepository
 import jp.xhw.mikke.services.identity.application.security.PasswordHasher
-import jp.xhw.mikke.services.identity.application.security.RefreshSessionTokenService
 import jp.xhw.mikke.services.identity.model.*
+import java.security.SecureRandom
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class IdentityService(
     private val userRepository: IdentityUserRepository,
-    private val refreshSessionRepository: RefreshSessionRepository,
+    private val clientSessionStore: ClientSessionStore,
     private val userOutbox: IdentityUserOutbox,
     private val transactionRunner: TransactionRunner,
     private val passwordHasher: PasswordHasher,
-    private val tokenService: JwtTokenService,
-    private val refreshSessionTokenService: RefreshSessionTokenService = RefreshSessionTokenService(),
+    private val secureRandom: SecureRandom = SecureRandom(),
     private val clock: Clock = Clock.System,
 ) {
     fun register(command: RegisterIdentityUserCommand): AuthenticatedIdentityUser =
@@ -57,7 +53,7 @@ class IdentityService(
 
                 AuthenticatedIdentityUser(
                     user = user,
-                    session = issueAuthSession(user.id, now),
+                    session = issueClientSession(user.id, now),
                 )
             } catch (e: IllegalArgumentException) {
                 throw InvalidIdentityInputException(message = e.message ?: "invalid input", cause = e)
@@ -94,61 +90,48 @@ class IdentityService(
 
             AuthenticatedIdentityUser(
                 user = currentUser,
-                session = issueAuthSession(currentUser.id, clock.now()),
+                session = issueClientSession(currentUser.id, clock.now()),
             )
         }
     }
 
-    fun refreshSession(refreshToken: String): IssuedAuthSession {
+    fun touchSession(sessionHash: String) {
+        requireValidSessionHash(sessionHash)
         val now = clock.now()
-        val refreshTokenHash = refreshSessionTokenService.hash(refreshToken)
-
-        return transactionRunner.runInTransaction {
-            val currentSession =
-                refreshSessionRepository
-                    .findByRefreshTokenHash(refreshTokenHash)
-                    ?.takeIf { it.isActiveAt(now) }
-                    ?: throw InvalidRefreshTokenException()
-
-            val user =
-                userRepository.findByIds(listOf(currentSession.userId)).firstOrNull()
-                    ?: throw InvalidRefreshTokenException()
-
-            if (!user.canAuthenticate()) {
-                throw InvalidRefreshTokenException()
-            }
-
-            val revoked = refreshSessionRepository.revoke(currentSession.id, now)
-            if (!revoked) {
-                throw InvalidRefreshTokenException()
-            }
-
-            issueAuthSession(user.id, now)
+        val record =
+            clientSessionStore.findSession(sessionHash)
+                ?: return
+        if (SessionValidation.validateRecord(
+                record,
+                projectedUserSessionVersion = record.userSessionVersion,
+                now = now,
+            ) != null
+        ) {
+            return
         }
+        if (!SessionValidation.shouldTouchSession(record, now)) {
+            return
+        }
+
+        clientSessionStore.touchSession(
+            sessionHash = sessionHash,
+            record = SessionRecordCodec.touch(record, now),
+        )
     }
 
-    fun logout(refreshToken: String) {
-        val now = clock.now()
-        val refreshTokenHash = refreshSessionTokenService.hash(refreshToken)
+    fun logoutSession(sessionHash: String) {
+        requireValidSessionHash(sessionHash)
+        clientSessionStore.deleteSession(sessionHash)
+    }
 
+    fun getMe(userId: UserId): IdentityUser =
         transactionRunner.runInTransaction {
-            refreshSessionRepository.revokeByRefreshTokenHash(refreshTokenHash, now)
-        }
-    }
-
-    fun getMe(subject: String): IdentityUser {
-        val userId =
-            subject.toUserIdOrNull()
-                ?: throw UserNotFoundException()
-
-        return transactionRunner.runInTransaction {
             userRepository
                 .findByIds(listOf(userId))
                 .firstOrNull()
                 ?.takeIf { it.canAuthenticate() }
                 ?: throw UserNotFoundException()
         }
-    }
 
     fun getUser(userId: UserId): IdentityUser =
         transactionRunner.runInTransaction {
@@ -211,14 +194,10 @@ class IdentityService(
         }
 
     fun updateProfile(
-        subject: String,
+        userId: UserId,
         command: UpdateProfileCommand,
     ): IdentityUser =
         transactionRunner.runInTransaction {
-            val userId =
-                subject.toUserIdOrNull()
-                    ?: throw UserNotFoundException()
-
             val current =
                 userRepository.findByIds(listOf(userId)).firstOrNull()
                     ?: throw UserNotFoundException()
@@ -249,12 +228,8 @@ class IdentityService(
             updated
         }
 
-    fun deactivateAccount(subject: String) {
+    fun deactivateAccount(userId: UserId) {
         transactionRunner.runInTransaction {
-            val userId =
-                subject.toUserIdOrNull()
-                    ?: throw UserNotFoundException()
-
             val current =
                 userRepository.findByIds(listOf(userId)).firstOrNull()
                     ?: throw UserNotFoundException()
@@ -275,13 +250,13 @@ class IdentityService(
                 throw UserNotFoundException()
             }
 
-            refreshSessionRepository.revokeAllForUser(userId, now)
+            revokeAllSessions(userId)
             userOutbox.appendUserDeactivated(userId, now)
         }
     }
 
     fun changePassword(
-        subject: String,
+        userId: UserId,
         command: ChangePasswordCommand,
     ) {
         if (command.newPassword == command.currentPassword) {
@@ -289,10 +264,6 @@ class IdentityService(
         }
 
         transactionRunner.runInTransaction {
-            val userId =
-                subject.toUserIdOrNull()
-                    ?: throw UserNotFoundException()
-
             val current =
                 userRepository.findByIds(listOf(userId)).firstOrNull()
                     ?: throw UserNotFoundException()
@@ -316,35 +287,60 @@ class IdentityService(
                 updatedAt = now,
             )
 
-            refreshSessionRepository.revokeAllForUser(userId, now)
-
+            revokeAllSessions(userId)
             userOutbox.appendPasswordChanged(userId, now)
         }
     }
 
-    private fun issueAuthSession(
+    private fun issueClientSession(
         userId: UserId,
         issuedAt: Instant,
-    ): IssuedAuthSession {
-        val principal = AuthenticatedPrincipal(subject = userId.value.toString())
-        val accessToken = tokenService.issueAccessToken(principal = principal, issuedAt = issuedAt)
-        val refreshToken = refreshSessionTokenService.issueRefreshToken(issuedAt = issuedAt)
+    ): IssuedClientSession {
+        val sessionVersion = userRepository.getSessionVersion(userId)
+        val sessionId = SessionId.generate(secureRandom)
+        val sessionHash = SessionId.hash(sessionId)
+        val record =
+            SessionRecordCodec.createNew(
+                userId = userId.value.toString(),
+                userSessionVersion = sessionVersion,
+                issuedAt = issuedAt,
+            )
 
-        refreshSessionRepository.save(
-            RefreshSession(
-                id = RefreshSessionId(Uuid.random()),
-                userId = userId,
-                refreshTokenHash = refreshSessionTokenService.hash(refreshToken.value),
-                expiresAt = refreshToken.expiresAt,
-                revokedAt = null,
-                createdAt = issuedAt,
-            ),
-        )
+        clientSessionStore.saveSession(sessionHash, record)
+        try {
+            projectUserSessionVersion(userId, sessionVersion)
+        } catch (e: SessionVersionProjectionException) {
+            clientSessionStore.deleteSession(sessionHash)
+            throw e
+        }
 
-        return IssuedAuthSession(
-            accessToken = accessToken,
-            refreshToken = IssuedToken(value = refreshToken.value, expiresAt = refreshToken.expiresAt),
+        return IssuedClientSession(
+            sessionId = sessionId,
+            idleExpiresAt = record.idleExpiresAt,
+            absoluteExpiresAt = record.absoluteExpiresAt,
         )
+    }
+
+    private fun revokeAllSessions(userId: UserId) {
+        val nextVersion = userRepository.incrementSessionVersion(userId)
+        projectUserSessionVersion(userId, nextVersion)
+    }
+
+    private fun projectUserSessionVersion(
+        userId: UserId,
+        version: Int,
+    ) {
+        try {
+            clientSessionStore.saveUserSessionVersion(userId.value.toString(), version)
+        } catch (e: Exception) {
+            throw SessionVersionProjectionException(cause = e)
+        }
+    }
+
+    private fun requireValidSessionHash(sessionHash: String) {
+        if (!SessionId.isValidSessionHash(sessionHash)) {
+            throw InvalidSessionHashException()
+        }
     }
 }
 
@@ -353,5 +349,3 @@ private fun IdentityUser.canAuthenticate(): Boolean = status == IdentityUserStat
 private fun String.normalizeEmail(): String = trim().lowercase()
 
 private fun String.normalizeUsername(): String = trim().lowercase()
-
-private fun String.toUserIdOrNull(): UserId? = runCatching { UserId(Uuid.parse(trim())) }.getOrNull()

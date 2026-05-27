@@ -1,15 +1,10 @@
 package jp.xhw.mikke.api.infrastructure
 
 import com.google.protobuf.Timestamp
-import io.grpc.ClientInterceptor
 import io.grpc.ManagedChannel
-import io.grpc.Metadata
 import io.grpc.Status
-import io.grpc.stub.MetadataUtils
-import jp.xhw.mikke.api.graphql.ApiRequestContext
 import jp.xhw.mikke.api.http.ApiErrorCode
 import jp.xhw.mikke.api.http.ApiHttpException
-import jp.xhw.mikke.platform.auth.grpc.AuthMetadataKeys
 import jp.xhw.mikke.platform.grpc.grpcClientChannelFromEnvironment
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -36,15 +31,6 @@ fun gatewayChannelFromEnvironment(
         defaultHost = "localhost",
         defaultPort = defaultPort,
     )
-
-fun authHeaderInterceptor(context: ApiRequestContext): ClientInterceptor? {
-    val authorizationHeader = context.authorizationHeader ?: return null
-    val metadata =
-        Metadata().also {
-            it.put(AuthMetadataKeys.Authorization, authorizationHeader)
-        }
-    return MetadataUtils.newAttachHeadersInterceptor(metadata)
-}
 
 fun closeChannel(channel: ManagedChannel) {
     channel.shutdown()

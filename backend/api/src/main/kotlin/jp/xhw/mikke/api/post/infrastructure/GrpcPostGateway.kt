@@ -8,10 +8,7 @@ import jp.xhw.mikke.api.common.infrastructure.call
 import jp.xhw.mikke.api.common.infrastructure.toPageInfo
 import jp.xhw.mikke.api.common.infrastructure.toProto
 import jp.xhw.mikke.api.graphql.ApiRequestContext
-import jp.xhw.mikke.api.infrastructure.authHeaderInterceptor
-import jp.xhw.mikke.api.infrastructure.closeChannel
-import jp.xhw.mikke.api.infrastructure.gatewayChannelFromEnvironment
-import jp.xhw.mikke.api.infrastructure.toIsoString
+import jp.xhw.mikke.api.infrastructure.*
 import jp.xhw.mikke.api.post.application.Post
 import jp.xhw.mikke.api.post.application.PostGateway
 import jp.xhw.mikke.post.v1.*
@@ -20,7 +17,7 @@ import jp.xhw.mikke.post.v1.Post as ProtoPost
 class GrpcPostGateway(
     private val channel: ManagedChannel,
     private val stub: PostServiceGrpcKt.PostServiceCoroutineStub =
-        PostServiceGrpcKt.PostServiceCoroutineStub(channel),
+        PostServiceGrpcKt.PostServiceCoroutineStub(channel).withInternalAuth(),
 ) : PostGateway {
     override suspend fun createPost(
         context: ApiRequestContext,
@@ -31,8 +28,7 @@ class GrpcPostGateway(
         accuracyMeters: Double,
     ): Post =
         call {
-            context
-                .stub()
+            stub
                 .createPost(
                     CreatePostRequest
                         .newBuilder()
@@ -41,6 +37,7 @@ class GrpcPostGateway(
                         .setVisibility(visibility.toPostVisibility())
                         .setLocation(location.toProto())
                         .setAccuracyMeters(accuracyMeters)
+                        .setActor(context.requireActorProto())
                         .build(),
                 ).post
                 .toPost()
@@ -51,10 +48,14 @@ class GrpcPostGateway(
         postId: String,
     ): Post =
         call {
-            context
-                .stub()
-                .getPost(GetPostRequest.newBuilder().setPostId(postId).build())
-                .post
+            stub
+                .getPost(
+                    GetPostRequest
+                        .newBuilder()
+                        .setPostId(postId)
+                        .setActor(context.requireActorProto())
+                        .build(),
+                ).post
                 .toPost()
         }
 
@@ -64,9 +65,13 @@ class GrpcPostGateway(
     ): PageResult<Post> =
         call {
             val response =
-                context
-                    .stub()
-                    .listVisiblePosts(ListVisiblePostsRequest.newBuilder().setPage(page.toProto()).build())
+                stub.listVisiblePosts(
+                    ListVisiblePostsRequest
+                        .newBuilder()
+                        .setPage(page.toProto())
+                        .setActor(context.requireActorProto())
+                        .build(),
+                )
             PageResult(response.postsList.map { it.toPost() }, response.pageInfo.toPageInfo())
         }
 
@@ -76,9 +81,13 @@ class GrpcPostGateway(
     ): PageResult<Post> =
         call {
             val response =
-                context
-                    .stub()
-                    .listMyPosts(ListMyPostsRequest.newBuilder().setPage(page.toProto()).build())
+                stub.listMyPosts(
+                    ListMyPostsRequest
+                        .newBuilder()
+                        .setPage(page.toProto())
+                        .setActor(context.requireActorProto())
+                        .build(),
+                )
             PageResult(response.postsList.map { it.toPost() }, response.pageInfo.toPageInfo())
         }
 
@@ -88,13 +97,13 @@ class GrpcPostGateway(
         caption: String,
     ): Post =
         call {
-            context
-                .stub()
+            stub
                 .updatePostCaption(
                     UpdatePostCaptionRequest
                         .newBuilder()
                         .setPostId(postId)
                         .setCaption(caption)
+                        .setActor(context.requireActorProto())
                         .build(),
                 ).post
                 .toPost()
@@ -106,13 +115,13 @@ class GrpcPostGateway(
         visibility: String,
     ): Post =
         call {
-            context
-                .stub()
+            stub
                 .updatePostVisibility(
                     UpdatePostVisibilityRequest
                         .newBuilder()
                         .setPostId(postId)
                         .setVisibility(visibility.toPostVisibility())
+                        .setActor(context.requireActorProto())
                         .build(),
                 ).post
                 .toPost()
@@ -123,14 +132,17 @@ class GrpcPostGateway(
         postId: String,
     ) {
         call {
-            context.stub().deletePost(DeletePostRequest.newBuilder().setPostId(postId).build())
+            stub.deletePost(
+                DeletePostRequest
+                    .newBuilder()
+                    .setPostId(postId)
+                    .setActor(context.requireActorProto())
+                    .build(),
+            )
         }
     }
 
     override fun close() = closeChannel(channel)
-
-    private fun ApiRequestContext.stub(): PostServiceGrpcKt.PostServiceCoroutineStub =
-        authHeaderInterceptor(this)?.let { stub.withInterceptors(it) } ?: stub
 
     companion object {
         fun fromEnvironment(): GrpcPostGateway =

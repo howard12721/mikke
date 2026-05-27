@@ -1,17 +1,13 @@
 package jp.xhw.mikke.platform.grpc
 
-import io.grpc.Metadata
-import io.grpc.MethodDescriptor
-import io.grpc.ServerCall
-import io.grpc.ServerCallHandler
-import io.grpc.Status
+import io.grpc.*
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 import java.util.logging.Logger
+import kotlin.coroutines.cancellation.CancellationException
 import java.util.concurrent.CancellationException as FutureCancellationException
-import kotlinx.coroutines.CancellationException as CoroutineCancellationException
 
 class GrpcExceptionMapperTest {
     @Test
@@ -104,10 +100,10 @@ class GrpcExceptionMapperTest {
 
     @Test
     fun `coroutine exception mapping rethrows cancellation`() {
-        val cancellation = CoroutineCancellationException("cancelled")
+        val cancellation = CancellationException("cancelled")
 
         val thrown =
-            org.junit.jupiter.api.assertThrows<CoroutineCancellationException> {
+            org.junit.jupiter.api.assertThrows<CancellationException> {
                 runBlocking {
                     withGrpcExceptionMapping(
                         logger = testLogger,
@@ -161,10 +157,10 @@ class GrpcExceptionMapperTest {
 
     @Test
     fun `grpc status mapper rethrows cancellation`() {
-        val cancellation = CoroutineCancellationException("cancelled")
+        val cancellation = CancellationException("cancelled")
 
         val thrown =
-            org.junit.jupiter.api.assertThrows<CoroutineCancellationException> {
+            org.junit.jupiter.api.assertThrows<CancellationException> {
                 cancellation.toGrpcStatusRuntimeException(
                     logger = testLogger,
                     serviceName = "test-service",

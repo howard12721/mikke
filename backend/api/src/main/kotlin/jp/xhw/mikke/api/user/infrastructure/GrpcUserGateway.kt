@@ -7,10 +7,8 @@ import jp.xhw.mikke.api.common.infrastructure.call
 import jp.xhw.mikke.api.common.infrastructure.toPageInfo
 import jp.xhw.mikke.api.common.infrastructure.toProto
 import jp.xhw.mikke.api.graphql.ApiRequestContext
-import jp.xhw.mikke.api.infrastructure.authHeaderInterceptor
-import jp.xhw.mikke.api.infrastructure.closeChannel
-import jp.xhw.mikke.api.infrastructure.gatewayChannelFromEnvironment
-import jp.xhw.mikke.api.infrastructure.toIsoString
+import jp.xhw.mikke.api.graphql.requireAuthenticatedActor
+import jp.xhw.mikke.api.infrastructure.*
 import jp.xhw.mikke.api.user.application.CurrentUser
 import jp.xhw.mikke.api.user.application.PublicUser
 import jp.xhw.mikke.api.user.application.UserGateway
@@ -20,14 +18,17 @@ import jp.xhw.mikke.identity.v1.PublicUser as ProtoPublicUser
 class GrpcUserGateway(
     private val channel: ManagedChannel,
     private val stub: IdentityServiceGrpcKt.IdentityServiceCoroutineStub =
-        IdentityServiceGrpcKt.IdentityServiceCoroutineStub(channel),
+        IdentityServiceGrpcKt.IdentityServiceCoroutineStub(channel).withInternalAuth(),
 ) : UserGateway {
     override suspend fun me(context: ApiRequestContext): CurrentUser =
         call {
-            context
-                .stub()
-                .getMe(GetMeRequest.getDefaultInstance())
-                .user
+            stub
+                .getMe(
+                    GetMeRequest
+                        .newBuilder()
+                        .setActor(context.requireAuthenticatedActor().toProto())
+                        .build(),
+                ).user
                 .toCurrentUser()
         }
 
@@ -36,8 +37,7 @@ class GrpcUserGateway(
         userId: String,
     ): PublicUser =
         call {
-            context
-                .stub()
+            stub
                 .getUser(GetUserRequest.newBuilder().setUserId(userId).build())
                 .user
                 .toPublicUser()
@@ -51,8 +51,7 @@ class GrpcUserGateway(
             emptyList()
         } else {
             call {
-                context
-                    .stub()
+                stub
                     .batchGetUsers(BatchGetUsersRequest.newBuilder().addAllUserIds(userIds).build())
                     .usersList
                     .map { it.toPublicUser() }
@@ -66,15 +65,13 @@ class GrpcUserGateway(
     ): PageResult<PublicUser> =
         call {
             val response =
-                context
-                    .stub()
-                    .searchUsers(
-                        SearchUsersRequest
-                            .newBuilder()
-                            .setQuery(query)
-                            .setPage(page.toProto())
-                            .build(),
-                    )
+                stub.searchUsers(
+                    SearchUsersRequest
+                        .newBuilder()
+                        .setQuery(query)
+                        .setPage(page.toProto())
+                        .build(),
+                )
             PageResult(response.usersList.map { it.toPublicUser() }, response.pageInfo.toPageInfo())
         }
 
@@ -85,15 +82,14 @@ class GrpcUserGateway(
         avatarMediaId: String?,
     ): CurrentUser =
         call {
-            val builder = UpdateProfileRequest.newBuilder()
+            val builder =
+                UpdateProfileRequest
+                    .newBuilder()
+                    .setActor(context.requireAuthenticatedActor().toProto())
             username?.let(builder::setUsername)
             displayName?.let(builder::setDisplayName)
             avatarMediaId?.let(builder::setAvatarMediaId)
-            context
-                .stub()
-                .updateProfile(builder.build())
-                .user
-                .toCurrentUser()
+            stub.updateProfile(builder.build()).user.toCurrentUser()
         }
 
     override suspend fun changePassword(
@@ -102,22 +98,18 @@ class GrpcUserGateway(
         newPassword: String,
     ) {
         call {
-            context
-                .stub()
-                .changePassword(
-                    ChangePasswordRequest
-                        .newBuilder()
-                        .setCurrentPassword(currentPassword)
-                        .setNewPassword(newPassword)
-                        .build(),
-                )
+            stub.changePassword(
+                ChangePasswordRequest
+                    .newBuilder()
+                    .setActor(context.requireAuthenticatedActor().toProto())
+                    .setCurrentPassword(currentPassword)
+                    .setNewPassword(newPassword)
+                    .build(),
+            )
         }
     }
 
     override fun close() = closeChannel(channel)
-
-    private fun ApiRequestContext.stub(): IdentityServiceGrpcKt.IdentityServiceCoroutineStub =
-        authHeaderInterceptor(this)?.let { stub.withInterceptors(it) } ?: stub
 
     companion object {
         fun fromEnvironment(): GrpcUserGateway =

@@ -15,11 +15,6 @@ class InvalidCredentialsException(
     cause: Throwable? = null,
 ) : IdentityApplicationException(message, cause)
 
-class InvalidRefreshTokenException(
-    message: String = "Invalid refresh token",
-    cause: Throwable? = null,
-) : IdentityApplicationException(message, cause)
-
 class UserNotFoundException(
     message: String = "User not found",
     cause: Throwable? = null,
@@ -27,5 +22,15 @@ class UserNotFoundException(
 
 class DuplicateIdentityUserException(
     message: String = "identity user already exists",
+    cause: Throwable? = null,
+) : IdentityApplicationException(message, cause)
+
+class SessionVersionProjectionException(
+    message: String = "Failed to update user session version projection",
+    cause: Throwable? = null,
+) : IdentityApplicationException(message, cause)
+
+class InvalidSessionHashException(
+    message: String = "Invalid session hash",
     cause: Throwable? = null,
 ) : IdentityApplicationException(message, cause)

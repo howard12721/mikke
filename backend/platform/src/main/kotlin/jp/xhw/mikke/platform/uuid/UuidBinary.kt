@@ -1,7 +1,7 @@
 package jp.xhw.mikke.platform.uuid
 
 import java.nio.ByteBuffer
-import java.util.UUID
+import java.util.*
 import kotlin.uuid.Uuid
 
 private const val UUID_BINARY_LENGTH = 16

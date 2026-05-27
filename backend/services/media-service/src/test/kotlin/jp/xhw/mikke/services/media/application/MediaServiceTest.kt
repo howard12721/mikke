@@ -199,7 +199,13 @@ class MediaServiceTest {
                 variants =
                     listOf(
                         variant(mediaId, MediaVariantKind.ORIGINAL, originalObjectKey, MediaVariantStatus.READY, now),
-                        variant(mediaId, MediaVariantKind.THUMBNAIL, "media/test/thumbnail", MediaVariantStatus.PENDING, now),
+                        variant(
+                            mediaId,
+                            MediaVariantKind.THUMBNAIL,
+                            "media/test/thumbnail",
+                            MediaVariantStatus.PENDING,
+                            now,
+                        ),
                     ),
             )
 

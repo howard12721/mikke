@@ -1,22 +1,20 @@
 package jp.xhw.mikke.services.identity
 
 import io.grpc.Status
+import jp.xhw.mikke.common.v1.ActorContext
 import jp.xhw.mikke.common.v1.PageRequest
 import jp.xhw.mikke.identity.v1.*
-import jp.xhw.mikke.platform.auth.AuthenticatedPrincipal
-import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
-import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
+import jp.xhw.mikke.platform.auth.session.SessionId
 import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.grpc.toGrpcStatusRuntimeException
 import jp.xhw.mikke.platform.outbox.OutboxEntry
 import jp.xhw.mikke.services.identity.application.exception.DuplicateIdentityUserException
 import jp.xhw.mikke.services.identity.application.exception.IdentityApplicationException
 import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
+import jp.xhw.mikke.services.identity.application.port.ClientSessionStore
 import jp.xhw.mikke.services.identity.application.port.IdentityUserOutbox
 import jp.xhw.mikke.services.identity.application.port.IdentityUserRepository
-import jp.xhw.mikke.services.identity.application.port.RefreshSessionRepository
 import jp.xhw.mikke.services.identity.application.security.PasswordHasher
-import jp.xhw.mikke.services.identity.application.security.RefreshSessionTokenService
 import jp.xhw.mikke.services.identity.application.service.IdentityService
 import jp.xhw.mikke.services.identity.model.*
 import kotlinx.coroutines.runBlocking
@@ -30,7 +28,7 @@ import kotlin.uuid.Uuid
 
 class IdentityServiceRpcTest {
     @Test
-    fun `registerUser returns user and session`() =
+    fun `registerUser returns user and opaque session`() =
         runBlocking {
             val repository = RecordingIdentityUserRepository()
             val rpc = createRpc(repository)
@@ -48,7 +46,9 @@ class IdentityServiceRpcTest {
 
             assertEquals("alice@example.com", response.user.email)
             assertEquals("alice", response.user.username)
-            assertTrue(response.session.accessToken.isNotBlank())
+            assertTrue(SessionId.isValidSessionId(response.session.sessionId))
+            assertTrue(response.session.hasIdleExpiresAt())
+            assertTrue(response.session.hasAbsoluteExpiresAt())
             assertEquals(1, repository.outbox.entries.size)
         }
 
@@ -127,11 +127,11 @@ class IdentityServiceRpcTest {
         }
 
     @Test
-    fun `getMe requires authentication`(): Unit =
+    fun `getMe requires actor user id`(): Unit =
         runBlocking {
             val rpc = createRpc()
 
-            assertStatus(Status.Code.UNAUTHENTICATED) {
+            assertStatus(Status.Code.INVALID_ARGUMENT) {
                 rpc.getMe(GetMeRequest.getDefaultInstance())
             }
         }
@@ -153,9 +153,16 @@ class IdentityServiceRpcTest {
                 )
 
             val response =
-                withIdentityUser(registered.user.id) {
-                    rpc.getMe(GetMeRequest.getDefaultInstance())
-                }
+                rpc.getMe(
+                    GetMeRequest
+                        .newBuilder()
+                        .setActor(
+                            ActorContext
+                                .newBuilder()
+                                .setUserId(registered.user.id)
+                                .build(),
+                        ).build(),
+                )
 
             assertEquals(registered.user.id, response.user.id)
         }
@@ -219,11 +226,11 @@ class IdentityServiceRpcTest {
         }
 
     @Test
-    fun `updateProfile requires authentication`(): Unit =
+    fun `updateProfile requires actor`(): Unit =
         runBlocking {
             val rpc = createRpc()
 
-            assertStatus(Status.Code.UNAUTHENTICATED) {
+            assertStatus(Status.Code.INVALID_ARGUMENT) {
                 rpc.updateProfile(
                     UpdateProfileRequest.newBuilder().setUsername("alice2").build(),
                 )
@@ -248,14 +255,17 @@ class IdentityServiceRpcTest {
 
             val error =
                 assertStatus(Status.Code.INVALID_ARGUMENT) {
-                    withIdentityUser(registered.user.id) {
-                        rpc.updateProfile(
-                            UpdateProfileRequest
-                                .newBuilder()
-                                .setAvatarMediaId("bad-avatar")
-                                .build(),
-                        )
-                    }
+                    rpc.updateProfile(
+                        UpdateProfileRequest
+                            .newBuilder()
+                            .setActor(
+                                ActorContext
+                                    .newBuilder()
+                                    .setUserId(registered.user.id)
+                                    .build(),
+                            ).setAvatarMediaId("bad-avatar")
+                            .build(),
+                    )
                 }
 
             assertEquals("avatar_media_id must be a valid UUID", error.description)
@@ -286,12 +296,10 @@ class IdentityServiceRpcTest {
         IdentityServiceRpc(
             IdentityService(
                 userRepository = repository,
-                refreshSessionRepository = repository.refreshSessions,
+                clientSessionStore = repository.sessionStore,
                 userOutbox = repository.outbox,
                 transactionRunner = ImmediateTransactionRunner,
                 passwordHasher = PasswordHasher(),
-                tokenService = JwtTokenService(secret = "test-secret", clock = fixedClock),
-                refreshSessionTokenService = RefreshSessionTokenService(),
                 clock = fixedClock,
             ),
         )
@@ -303,14 +311,6 @@ class IdentityServiceRpcTest {
             }
     }
 }
-
-private fun <T> withIdentityUser(
-    userId: String,
-    block: suspend () -> T,
-): T =
-    GrpcAuthContext
-        .withPrincipal(AuthenticatedPrincipal(subject = userId))
-        .call<T> { runBlocking { block() } }
 
 private suspend inline fun assertStatus(
     expectedCode: Status.Code,
@@ -344,10 +344,12 @@ private object ImmediateTransactionRunner : TransactionRunner {
 
 private open class RecordingIdentityUserRepository(
     private val duplicateOnSave: Boolean = false,
-) : IdentityUserRepository {
+) : IdentityUserRepository,
+    IdentityUserOutbox {
     var savedUser: IdentityUser? = null
-    val refreshSessions = RecordingRefreshSessionRepository()
+    val sessionStore = RecordingClientSessionStore()
     val outbox = RecordingIdentityUserOutbox()
+    var sessionVersion: Int = 0
 
     override fun saveUser(user: IdentityUser) {
         if (duplicateOnSave) {
@@ -419,6 +421,43 @@ private open class RecordingIdentityUserRepository(
         savedUser = current.copy(passwordHash = passwordHash, updatedAt = updatedAt)
         return true
     }
+
+    override fun getSessionVersion(userId: UserId): Int {
+        val current =
+            savedUser ?: throw jp.xhw.mikke.services.identity.application.exception
+                .UserNotFoundException()
+        if (current.id != userId) {
+            throw jp.xhw.mikke.services.identity.application.exception
+                .UserNotFoundException()
+        }
+        return sessionVersion
+    }
+
+    override fun incrementSessionVersion(userId: UserId): Int {
+        val current =
+            savedUser ?: throw jp.xhw.mikke.services.identity.application.exception
+                .UserNotFoundException()
+        if (current.id != userId) {
+            throw jp.xhw.mikke.services.identity.application.exception
+                .UserNotFoundException()
+        }
+        sessionVersion += 1
+        return sessionVersion
+    }
+
+    override fun appendUserCreated(user: IdentityUser) = outbox.appendUserCreated(user)
+
+    override fun appendProfileUpdated(user: IdentityUser) = outbox.appendProfileUpdated(user)
+
+    override fun appendUserDeactivated(
+        userId: UserId,
+        deactivatedAt: Instant,
+    ) = outbox.appendUserDeactivated(userId, deactivatedAt)
+
+    override fun appendPasswordChanged(
+        userId: UserId,
+        updatedAt: Instant,
+    ) = outbox.appendPasswordChanged(userId, updatedAt)
 }
 
 private class ThrowingIdentityUserRepository : RecordingIdentityUserRepository() {
@@ -464,66 +503,32 @@ private class RecordingIdentityUserOutbox : IdentityUserOutbox {
         )
 }
 
-private class RecordingRefreshSessionRepository : RefreshSessionRepository {
-    private val sessions = mutableListOf<RefreshSession>()
+private class RecordingClientSessionStore : ClientSessionStore {
+    val sessions = mutableMapOf<String, jp.xhw.mikke.platform.auth.session.SessionRecord>()
+    val userSessionVersions = mutableMapOf<String, Int>()
 
-    override fun save(session: RefreshSession) {
-        sessions += session
-    }
-
-    override fun findByRefreshTokenHash(refreshTokenHash: String): RefreshSession? =
-        sessions.lastOrNull { it.refreshTokenHash == refreshTokenHash }
-
-    override fun revoke(
-        sessionId: RefreshSessionId,
-        revokedAt: Instant,
-    ): Boolean {
-        val index = sessions.indexOfFirst { it.id == sessionId && it.revokedAt == null }
-        if (index < 0) {
-            return false
-        }
-        sessions[index] = sessions[index].copy(revokedAt = revokedAt)
-        return true
-    }
-
-    override fun revokeByRefreshTokenHash(
-        refreshTokenHash: String,
-        revokedAt: Instant,
-    ): Boolean {
-        val index = sessions.indexOfFirst { it.refreshTokenHash == refreshTokenHash && it.revokedAt == null }
-        if (index < 0) {
-            return false
-        }
-        sessions[index] = sessions[index].copy(revokedAt = revokedAt)
-        return true
-    }
-
-    override fun revokeAllForUser(
-        userId: UserId,
-        revokedAt: Instant,
+    override fun saveSession(
+        sessionHash: String,
+        record: jp.xhw.mikke.platform.auth.session.SessionRecord,
     ) {
-        sessions.indices.forEach { index ->
-            val session = sessions[index]
-            if (session.userId == userId && session.revokedAt == null) {
-                sessions[index] = session.copy(revokedAt = revokedAt)
-            }
-        }
+        sessions[sessionHash] = record
     }
-}
 
-@Suppress("unused")
-private fun sampleUser(): IdentityUser {
-    val now = Instant.parse("2026-05-18T00:00:00Z")
-    return IdentityUser(
-        id = UserId(Uuid.random()),
-        email = Email("alice@example.com"),
-        username = Username("alice"),
-        displayName = DisplayName("Alice"),
-        passwordHash = PasswordHash(iterations = 1, hash = "hash", salt = "salt"),
-        avatarMediaId = null,
-        status = IdentityUserStatus.ACTIVE,
-        createdAt = now,
-        updatedAt = now,
-        deactivatedAt = null,
-    )
+    override fun findSession(sessionHash: String): jp.xhw.mikke.platform.auth.session.SessionRecord? = sessions[sessionHash]
+
+    override fun touchSession(
+        sessionHash: String,
+        record: jp.xhw.mikke.platform.auth.session.SessionRecord,
+    ) {
+        saveSession(sessionHash, record)
+    }
+
+    override fun deleteSession(sessionHash: String): Boolean = sessions.remove(sessionHash) != null
+
+    override fun saveUserSessionVersion(
+        userId: String,
+        version: Int,
+    ) {
+        userSessionVersions[userId] = maxOf(userSessionVersions[userId] ?: version, version)
+    }
 }

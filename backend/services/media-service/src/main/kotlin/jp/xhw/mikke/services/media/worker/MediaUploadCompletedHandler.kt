@@ -108,10 +108,26 @@ class MediaUploadCompletedHandler(
             }
 
         when (work) {
-            ThumbnailWork.Done -> Unit
-            is ThumbnailWork.MarkProcessed -> markProcessed(work.eventId, work.eventType)
-            is ThumbnailWork.FailThumbnail -> markThumbnailFailed(work.mediaId, work.eventId, work.eventType, work.reason)
-            is ThumbnailWork.Generate -> generateThumbnail(work)
+            ThumbnailWork.Done -> {
+                Unit
+            }
+
+            is ThumbnailWork.MarkProcessed -> {
+                markProcessed(work.eventId, work.eventType)
+            }
+
+            is ThumbnailWork.FailThumbnail -> {
+                markThumbnailFailed(
+                    work.mediaId,
+                    work.eventId,
+                    work.eventType,
+                    work.reason,
+                )
+            }
+
+            is ThumbnailWork.Generate -> {
+                generateThumbnail(work)
+            }
         }
     }
 
@@ -129,7 +145,12 @@ class MediaUploadCompletedHandler(
                         return
                     }
             } catch (e: ObjectTooLargeException) {
-                markThumbnailFailed(work.mediaId, work.eventId, work.eventType, e.message ?: "Original object too large")
+                markThumbnailFailed(
+                    work.mediaId,
+                    work.eventId,
+                    work.eventType,
+                    e.message ?: "Original object too large",
+                )
                 return
             }
 

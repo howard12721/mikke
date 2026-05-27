@@ -22,11 +22,15 @@ class FriendshipServiceApplicationTest {
     }
 
     @Test
-    fun `internal visibility check still requires internal authentication`() {
+    fun `friendship rpc methods require internal authentication`() {
         val policies = friendshipGrpcAuthPolicies()
 
         assertEquals(
-            GrpcEndpointAuthPolicy.InternalRequired,
+            GrpcEndpointAuthPolicy.internalRequired("api"),
+            policies[FriendshipServiceGrpc.getSendFriendRequestMethod().fullMethodName],
+        )
+        assertEquals(
+            GrpcEndpointAuthPolicy.internalRequired("api", "post-service", "media-service"),
             policies[FriendshipServiceGrpc.getCheckCanViewUserPostsForViewerMethod().fullMethodName],
         )
     }

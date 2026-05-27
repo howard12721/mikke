@@ -2,16 +2,7 @@ package jp.xhw.mikke.services.guess.application
 
 import jp.xhw.mikke.platform.outbox.OutboxEntry
 import jp.xhw.mikke.platform.pagination.CreatedAtIdCursor
-import jp.xhw.mikke.services.guess.model.GeoPoint
-import jp.xhw.mikke.services.guess.model.Guess
-import jp.xhw.mikke.services.guess.model.GuessId
-import jp.xhw.mikke.services.guess.model.GuessRankingMetric
-import jp.xhw.mikke.services.guess.model.GuessUserRankingEntry
-import jp.xhw.mikke.services.guess.model.PostAuthorRankingEntry
-import jp.xhw.mikke.services.guess.model.PostGuessStats
-import jp.xhw.mikke.services.guess.model.PostId
-import jp.xhw.mikke.services.guess.model.UserId
-import jp.xhw.mikke.services.guess.model.UserScoreSummary
+import jp.xhw.mikke.services.guess.model.*
 
 interface GuessRepository {
     fun save(guess: Guess)
@@ -86,7 +77,10 @@ data class PostLocationForGuess(
 )
 
 interface PostAccessPort {
-    suspend fun canViewPost(postId: PostId): Boolean
+    suspend fun canViewPost(
+        postId: PostId,
+        viewerUserId: UserId,
+    ): Boolean
 
     suspend fun getPostLocationForGuess(postId: PostId): PostLocationForGuess
 }

@@ -76,17 +76,19 @@ fun requireInternalCaller(allowedServices: Set<String>): InternalCallerContext {
 
 class InternalRpcServerInterceptor(
     private val methodAuthPolicies: Map<String, GrpcEndpointAuthPolicy> = emptyMap(),
+    private val tokenResolver: () -> String? = ::resolveInternalRpcToken,
 ) : ServerInterceptor {
     override fun <ReqT, RespT> interceptCall(
         call: ServerCall<ReqT, RespT>,
         headers: Metadata,
         next: ServerCallHandler<ReqT, RespT>,
     ): ServerCall.Listener<ReqT> {
-        val requiresInternalCaller =
+        val authPolicy =
             call.methodDescriptor
                 ?.fullMethodName
-                ?.let { methodAuthPolicies[it] == GrpcEndpointAuthPolicy.InternalRequired }
-                ?: false
+                ?.let { methodAuthPolicies[it] }
+                ?: GrpcEndpointAuthPolicy.InternalRequired
+        val requiresInternalCaller = authPolicy.kind != GrpcEndpointAuthPolicy.Kind.UserOptional
         val token = headers.get(MikkeGrpcMetadata.internalTokenKey)?.trim()
         if (token.isNullOrEmpty()) {
             if (requiresInternalCaller) {
@@ -97,8 +99,7 @@ class InternalRpcServerInterceptor(
         }
 
         val expectedToken =
-            System
-                .getenv(INTERNAL_RPC_TOKEN_ENV)
+            tokenResolver()
                 ?.takeIf { it.isNotEmpty() }
                 ?: run {
                     call.close(Status.INTERNAL.withDescription("$INTERNAL_RPC_TOKEN_ENV is not configured"), Metadata())
@@ -113,6 +114,10 @@ class InternalRpcServerInterceptor(
         val callerService = headers.get(MikkeGrpcMetadata.callerServiceKey)?.trim()?.takeIf { it.isNotEmpty() }
         if (callerService == null) {
             call.close(Status.UNAUTHENTICATED.withDescription("Caller service is required"), Metadata())
+            return object : ServerCall.Listener<ReqT>() {}
+        }
+        if (authPolicy.allowedCallers.isNotEmpty() && callerService !in authPolicy.allowedCallers) {
+            call.close(Status.PERMISSION_DENIED.withDescription("Caller service is not allowed"), Metadata())
             return object : ServerCall.Listener<ReqT>() {}
         }
 

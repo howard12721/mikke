@@ -1,14 +1,22 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
+    id("mikke.protobuf-conventions")
     `java-library`
+}
+
+sourceSets {
+    main {
+        proto {
+            srcDir(rootProject.file("proto"))
+            include("common/v1/*.proto")
+        }
+    }
 }
 
 dependencies {
     api(project(":events:event-core"))
 
-    implementation(libs.ktor.server.auth)
-    implementation(libs.ktor.server.auth.jwt)
     implementation(libs.grpc.api)
     implementation(libs.grpc.protobuf)
     implementation(libs.grpc.stub)
