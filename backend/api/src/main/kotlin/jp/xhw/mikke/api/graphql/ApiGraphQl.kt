@@ -50,8 +50,14 @@ fun apiGraphQlQueries(dependencies: ApiDependencies): List<Query> =
         ApiQuery(),
         UserQuery(userApiService = dependencies.userApiService),
         PostQuery(postApiService = dependencies.postApiService),
-        FriendshipQuery(friendshipApiService = dependencies.friendshipApiService),
-        GuessQuery(guessApiService = dependencies.guessApiService),
+        FriendshipQuery(
+            friendshipApiService = dependencies.friendshipApiService,
+            userApiService = dependencies.userApiService,
+        ),
+        GuessQuery(
+            guessApiService = dependencies.guessApiService,
+            userApiService = dependencies.userApiService,
+        ),
     )
 
 fun apiGraphQlMutations(dependencies: ApiDependencies): List<Mutation> =
@@ -60,7 +66,10 @@ fun apiGraphQlMutations(dependencies: ApiDependencies): List<Mutation> =
         UserMutation(userApiService = dependencies.userApiService),
         MediaMutation(mediaApiService = dependencies.mediaApiService),
         PostMutation(postApiService = dependencies.postApiService),
-        FriendshipMutation(friendshipApiService = dependencies.friendshipApiService),
+        FriendshipMutation(
+            friendshipApiService = dependencies.friendshipApiService,
+            userApiService = dependencies.userApiService,
+        ),
         GuessMutation(guessApiService = dependencies.guessApiService),
     )
 

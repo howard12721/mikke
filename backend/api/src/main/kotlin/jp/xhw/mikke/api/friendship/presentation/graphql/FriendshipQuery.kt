@@ -7,9 +7,12 @@ import jp.xhw.mikke.api.common.presentation.graphql.toApplication
 import jp.xhw.mikke.api.common.presentation.graphql.toGraphQl
 import jp.xhw.mikke.api.friendship.application.FriendshipApiService
 import jp.xhw.mikke.api.graphql.apiRequestContext
+import jp.xhw.mikke.api.user.application.UserApiService
+import jp.xhw.mikke.api.user.presentation.graphql.loadGraphQlUsersById
 
 class FriendshipQuery(
     private val friendshipApiService: FriendshipApiService,
+    private val userApiService: UserApiService,
 ) : Query {
     suspend fun friendship(
         targetUserId: String,
@@ -20,10 +23,14 @@ class FriendshipQuery(
         targetUserId: String,
         page: PageInput? = null,
         environment: DataFetchingEnvironment,
-    ): FriendUserIdsPage {
+    ): FriendPage {
         val result =
             friendshipApiService.listFriends(environment.apiRequestContext(), targetUserId, page.toApplication())
-        return FriendUserIdsPage(userIds = result.items, pageInfo = result.pageInfo.toGraphQl())
+        val usersById = userApiService.loadGraphQlUsersById(environment, result.items)
+        return FriendPage(
+            users = result.items.map { usersById.getValue(it) },
+            pageInfo = result.pageInfo.toGraphQl(),
+        )
     }
 
     suspend fun incomingFriendRequests(
@@ -31,7 +38,15 @@ class FriendshipQuery(
         environment: DataFetchingEnvironment,
     ): FriendRequestPage {
         val result = friendshipApiService.incomingRequests(environment.apiRequestContext(), page.toApplication())
-        return FriendRequestPage(requests = result.items.map { it.toGraphQl() }, pageInfo = result.pageInfo.toGraphQl())
+        val usersById =
+            userApiService.loadGraphQlUsersById(
+                environment,
+                result.items.flatMap { listOf(it.senderUserId, it.receiverUserId) },
+            )
+        return FriendRequestPage(
+            requests = result.items.map { it.toGraphQl(usersById) },
+            pageInfo = result.pageInfo.toGraphQl(),
+        )
     }
 
     suspend fun outgoingFriendRequests(
@@ -39,6 +54,14 @@ class FriendshipQuery(
         environment: DataFetchingEnvironment,
     ): FriendRequestPage {
         val result = friendshipApiService.outgoingRequests(environment.apiRequestContext(), page.toApplication())
-        return FriendRequestPage(requests = result.items.map { it.toGraphQl() }, pageInfo = result.pageInfo.toGraphQl())
+        val usersById =
+            userApiService.loadGraphQlUsersById(
+                environment,
+                result.items.flatMap { listOf(it.senderUserId, it.receiverUserId) },
+            )
+        return FriendRequestPage(
+            requests = result.items.map { it.toGraphQl(usersById) },
+            pageInfo = result.pageInfo.toGraphQl(),
+        )
     }
 }

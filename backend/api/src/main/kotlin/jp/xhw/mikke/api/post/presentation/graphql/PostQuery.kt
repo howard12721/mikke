@@ -19,9 +19,9 @@ class PostQuery(
     suspend fun myPosts(
         page: PageInput? = null,
         environment: DataFetchingEnvironment,
-    ): PostPage {
+    ): TimelinePage {
         val result = postApiService.myPosts(environment.apiRequestContext(), page.toApplication())
-        return PostPage(posts = result.items.map { it.toGraphQl() }, pageInfo = result.pageInfo.toGraphQl())
+        return TimelinePage(items = result.items.map { it.toGraphQl() }, pageInfo = result.pageInfo.toGraphQl())
     }
 
     suspend fun timeline(

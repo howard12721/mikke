@@ -4,6 +4,7 @@ import jp.xhw.mikke.api.common.presentation.graphql.GeoPoint
 import jp.xhw.mikke.api.common.presentation.graphql.GeoPointInput
 import jp.xhw.mikke.api.common.presentation.graphql.PageInfo
 import jp.xhw.mikke.api.common.presentation.graphql.toGraphQl
+import jp.xhw.mikke.api.user.presentation.graphql.User
 
 enum class GuessRankingMetric {
     GUESS_COUNT,
@@ -51,7 +52,7 @@ data class UserScoreSummary(
 )
 
 data class PostUserRankingEntry(
-    val userId: String,
+    val user: User?,
     val rank: String,
     val postCount: String,
 )
@@ -62,7 +63,7 @@ data class PostRankingPage(
 )
 
 data class GuessUserRankingEntry(
-    val userId: String,
+    val user: User?,
     val rank: String,
     val totalScore: String,
     val averageScore: Double,
@@ -87,12 +88,12 @@ fun jp.xhw.mikke.api.guess.application.PostGuessStats.toGraphQl(): PostGuessStat
 fun jp.xhw.mikke.api.guess.application.UserScoreSummary.toGraphQl(): UserScoreSummary =
     UserScoreSummary(userId, totalScore.toString(), averageScore, guessCount.toString(), bestDistanceMeters)
 
-fun jp.xhw.mikke.api.guess.application.PostUserRankingEntry.toGraphQl(): PostUserRankingEntry =
-    PostUserRankingEntry(userId, rank.toString(), postCount.toString())
+fun jp.xhw.mikke.api.guess.application.PostUserRankingEntry.toGraphQl(usersById: Map<String, User> = emptyMap()): PostUserRankingEntry =
+    PostUserRankingEntry(usersById[userId], rank.toString(), postCount.toString())
 
-fun jp.xhw.mikke.api.guess.application.GuessUserRankingEntry.toGraphQl(): GuessUserRankingEntry =
+fun jp.xhw.mikke.api.guess.application.GuessUserRankingEntry.toGraphQl(usersById: Map<String, User> = emptyMap()): GuessUserRankingEntry =
     GuessUserRankingEntry(
-        userId,
+        usersById[userId],
         rank.toString(),
         totalScore.toString(),
         averageScore,

@@ -53,29 +53,36 @@ class PostApiService(
     suspend fun myPosts(
         context: ApiRequestContext,
         page: PageInput,
-    ): PageResult<Post> = postGateway.listMyPosts(context, page.normalized())
+    ): PageResult<TimelineItem> {
+        val posts = postGateway.listMyPosts(context, page.normalized())
+        return posts.toTimelineItems(context)
+    }
 
     suspend fun timeline(
         context: ApiRequestContext,
         page: PageInput,
     ): PageResult<TimelineItem> {
         val posts = postGateway.listVisiblePosts(context, page.normalized())
+        return posts.toTimelineItems(context)
+    }
+
+    private suspend fun PageResult<Post>.toTimelineItems(context: ApiRequestContext): PageResult<TimelineItem> {
         val mediaById =
             mediaGateway
-                .batchGetMedia(context, posts.items.map { it.mediaId }.distinct())
+                .batchGetMedia(context, items.map { it.mediaId }.distinct())
                 .associateBy { it.id }
         val usersById =
             userGateway
-                .batchGetUsers(context, posts.items.map { it.authorUserId }.distinct())
+                .batchGetUsers(context, items.map { it.authorUserId }.distinct())
                 .associateBy { it.id }
         val guessesByPostId =
             guessGateway
-                .batchGetMyGuessesForPosts(context, posts.items.map { it.id })
+                .batchGetMyGuessesForPosts(context, items.map { it.id })
                 .associateBy { it.guess.postId }
 
         return PageResult(
             items =
-                posts.items.map { post ->
+                items.map { post ->
                     TimelineItem(
                         post = post,
                         author = usersById[post.authorUserId],
@@ -83,7 +90,7 @@ class PostApiService(
                         myGuessResult = guessesByPostId[post.id],
                     )
                 },
-            pageInfo = posts.pageInfo,
+            pageInfo = pageInfo,
         )
     }
 

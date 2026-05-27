@@ -47,11 +47,6 @@ data class Post(
     val updatedAt: String,
 )
 
-data class PostPage(
-    val posts: List<Post>,
-    val pageInfo: PageInfo,
-)
-
 data class TimelineItem(
     val post: Post,
     val author: User?,

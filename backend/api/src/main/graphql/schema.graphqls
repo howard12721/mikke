@@ -73,24 +73,24 @@ type DeletePostPayload {
   success: Boolean!
 }
 
+type FriendPage {
+  pageInfo: PageInfo!
+  users: [User!]!
+}
+
 type FriendRequest {
   canceledAt: String
   createdAt: String!
   id: String!
-  receiverUserId: String!
+  receiver: User
   respondedAt: String
-  senderUserId: String!
+  sender: User
   status: String!
 }
 
 type FriendRequestPage {
   pageInfo: PageInfo!
   requests: [FriendRequest!]!
-}
-
-type FriendUserIdsPage {
-  pageInfo: PageInfo!
-  userIds: [String!]!
 }
 
 type Friendship {
@@ -143,7 +143,7 @@ type GuessUserRankingEntry {
   guessCount: String!
   rank: String!
   totalScore: String!
-  userId: String!
+  user: User
 }
 
 type LogoutPayload {
@@ -217,11 +217,6 @@ type PostGuessStats {
   postId: String!
 }
 
-type PostPage {
-  pageInfo: PageInfo!
-  posts: [Post!]!
-}
-
 type PostRankingPage {
   entries: [PostUserRankingEntry!]!
   pageInfo: PageInfo!
@@ -230,18 +225,18 @@ type PostRankingPage {
 type PostUserRankingEntry {
   postCount: String!
   rank: String!
-  userId: String!
+  user: User
 }
 
 type Query {
-  friends(page: PageInput, targetUserId: String!): FriendUserIdsPage!
+  friends(page: PageInput, targetUserId: String!): FriendPage!
   friendship(targetUserId: String!): FriendshipSummary!
   guessRankings(metric: GuessRankingMetric!, page: PageInput): GuessRankingPage!
   health: String!
   incomingFriendRequests(page: PageInput): FriendRequestPage!
   me: CurrentUser!
   myGuessForPost(postId: String!): GuessResult
-  myPosts(page: PageInput): PostPage!
+  myPosts(page: PageInput): TimelinePage!
   outgoingFriendRequests(page: PageInput): FriendRequestPage!
   post(id: String!): TimelineItem!
   postGuessStats(postId: String!): PostGuessStats!

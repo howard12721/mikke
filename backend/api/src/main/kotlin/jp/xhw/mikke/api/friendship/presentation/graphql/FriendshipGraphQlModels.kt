@@ -1,6 +1,7 @@
 package jp.xhw.mikke.api.friendship.presentation.graphql
 
 import jp.xhw.mikke.api.common.presentation.graphql.PageInfo
+import jp.xhw.mikke.api.user.presentation.graphql.User
 
 data class SendFriendRequestInput(
     val receiverUserId: String,
@@ -16,8 +17,8 @@ data class UserIdInput(
 
 data class FriendRequest(
     val id: String,
-    val senderUserId: String,
-    val receiverUserId: String,
+    val sender: User?,
+    val receiver: User?,
     val status: String,
     val createdAt: String,
     val respondedAt: String?,
@@ -46,8 +47,8 @@ data class FriendshipSummary(
     val canSendRequest: Boolean,
 )
 
-data class FriendUserIdsPage(
-    val userIds: List<String>,
+data class FriendPage(
+    val users: List<User>,
     val pageInfo: PageInfo,
 )
 
@@ -60,8 +61,16 @@ data class BooleanPayload(
     val success: Boolean,
 )
 
-fun jp.xhw.mikke.api.friendship.application.FriendRequest.toGraphQl(): FriendRequest =
-    FriendRequest(id, senderUserId, receiverUserId, status, createdAt, respondedAt, canceledAt)
+fun jp.xhw.mikke.api.friendship.application.FriendRequest.toGraphQl(usersById: Map<String, User> = emptyMap()): FriendRequest =
+    FriendRequest(
+        id = id,
+        sender = usersById[senderUserId],
+        receiver = usersById[receiverUserId],
+        status = status,
+        createdAt = createdAt,
+        respondedAt = respondedAt,
+        canceledAt = canceledAt,
+    )
 
 fun jp.xhw.mikke.api.friendship.application.Friendship.toGraphQl(): Friendship =
     Friendship(id, userLowId, userHighId, status, createdAt, removedAt)
