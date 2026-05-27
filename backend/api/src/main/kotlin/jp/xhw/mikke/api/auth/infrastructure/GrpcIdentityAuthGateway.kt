@@ -105,8 +105,11 @@ private fun ProtoAuthSession.toAuthSession(): AuthSession =
 private fun UserStatus.toApiStatus(): String =
     when (this) {
         UserStatus.USER_STATUS_ACTIVE -> "active"
+
         UserStatus.USER_STATUS_SUSPENDED -> "suspended"
+
         UserStatus.USER_STATUS_DEACTIVATED -> "deactivated"
+
         UserStatus.USER_STATUS_UNSPECIFIED,
         UserStatus.UNRECOGNIZED,
         -> "unspecified"

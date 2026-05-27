@@ -6,25 +6,14 @@ import jp.xhw.mikke.identity.v1.IdentityServiceGrpcKt
 import jp.xhw.mikke.media.v1.MediaServiceGrpcKt
 import jp.xhw.mikke.platform.database.connectMariaDbFromEnv
 import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
-import jp.xhw.mikke.platform.grpc.GrpcServerExceptionHandling
-import jp.xhw.mikke.platform.grpc.InternalCallerClientInterceptor
-import jp.xhw.mikke.platform.grpc.InternalRpcServerInterceptor
-import jp.xhw.mikke.platform.grpc.grpcClientChannelFromEnvironment
-import jp.xhw.mikke.platform.grpc.grpcServer
-import jp.xhw.mikke.platform.grpc.installGrpcHealth
-import jp.xhw.mikke.platform.grpc.startAndAwait
+import jp.xhw.mikke.platform.grpc.*
 import jp.xhw.mikke.platform.outbox.OutboxRelay
 import jp.xhw.mikke.platform.outbox.RedisOutboxPublisher
 import jp.xhw.mikke.platform.redis.RedisStreamProducer
 import jp.xhw.mikke.platform.redis.connectRedisFromEnv
 import jp.xhw.mikke.post.v1.PostServiceGrpc
 import jp.xhw.mikke.services.post.application.PostService
-import jp.xhw.mikke.services.post.infrastructure.ExposedPostOutboxRepository
-import jp.xhw.mikke.services.post.infrastructure.ExposedPostRepository
-import jp.xhw.mikke.services.post.infrastructure.GrpcPostMediaChecker
-import jp.xhw.mikke.services.post.infrastructure.GrpcPostUserStatusChecker
-import jp.xhw.mikke.services.post.infrastructure.GrpcPostVisibilityAuthorizer
-import jp.xhw.mikke.services.post.infrastructure.PostOutboxTable
+import jp.xhw.mikke.services.post.infrastructure.*
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -95,11 +84,16 @@ fun main() {
                             streamName = System.getenv("POST_EVENTS_STREAM") ?: "mikke.post.events",
                         ),
                     producerName = "post-service",
-                    publisherId = System.getenv("OUTBOX_PUBLISHER_ID") ?: "post-service-${ProcessHandle.current().pid()}",
+                    publisherId =
+                        System.getenv("OUTBOX_PUBLISHER_ID") ?: "post-service-${
+                            ProcessHandle.current().pid()
+                        }",
                     batchSize = System.getenv("OUTBOX_RELAY_BATCH_SIZE")?.toIntOrNull() ?: 100,
                     leaseDuration = System.getenv("OUTBOX_RELAY_LEASE_SECONDS")?.toLongOrNull()?.seconds ?: 30.seconds,
                 ),
-            idleDelay = System.getenv("OUTBOX_RELAY_IDLE_DELAY_MILLIS")?.toLongOrNull()?.milliseconds ?: 500.milliseconds,
+            idleDelay =
+                System.getenv("OUTBOX_RELAY_IDLE_DELAY_MILLIS")?.toLongOrNull()?.milliseconds
+                    ?: 500.milliseconds,
             errorDelay = System.getenv("OUTBOX_RELAY_ERROR_DELAY_MILLIS")?.toLongOrNull()?.milliseconds ?: 5.seconds,
         )
     outboxRelay.start()

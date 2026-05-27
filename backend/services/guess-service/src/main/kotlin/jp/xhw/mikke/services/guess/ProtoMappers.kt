@@ -2,7 +2,6 @@ package jp.xhw.mikke.services.guess
 
 import jp.xhw.mikke.guess.v1.*
 import jp.xhw.mikke.platform.time.toProtoTimestamp
-import jp.xhw.mikke.services.guess.model.*
 import jp.xhw.mikke.common.v1.GeoPoint as CommonGeoPoint
 import jp.xhw.mikke.services.guess.model.GeoPoint as DomainGeoPoint
 import jp.xhw.mikke.services.guess.model.Guess as DomainGuess
@@ -93,12 +92,22 @@ fun DomainGuessRankingMetric.toProto(): GuessRankingMetric =
 
 fun GuessRankingMetric.toDomain(): DomainGuessRankingMetric =
     when (this) {
-        GuessRankingMetric.GUESS_RANKING_METRIC_GUESS_COUNT -> DomainGuessRankingMetric.GUESS_COUNT
-        GuessRankingMetric.GUESS_RANKING_METRIC_TOTAL_SCORE -> DomainGuessRankingMetric.TOTAL_SCORE
-        GuessRankingMetric.GUESS_RANKING_METRIC_AVERAGE_SCORE -> DomainGuessRankingMetric.AVERAGE_SCORE
-        else ->
+        GuessRankingMetric.GUESS_RANKING_METRIC_GUESS_COUNT -> {
+            DomainGuessRankingMetric.GUESS_COUNT
+        }
+
+        GuessRankingMetric.GUESS_RANKING_METRIC_TOTAL_SCORE -> {
+            DomainGuessRankingMetric.TOTAL_SCORE
+        }
+
+        GuessRankingMetric.GUESS_RANKING_METRIC_AVERAGE_SCORE -> {
+            DomainGuessRankingMetric.AVERAGE_SCORE
+        }
+
+        else -> {
             throw jp.xhw.mikke.platform.grpc
                 .ValidationException("metric is required")
+        }
     }
 
 fun CommonGeoPoint.toDomain(): DomainGeoPoint =

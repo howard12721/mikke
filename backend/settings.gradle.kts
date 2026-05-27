@@ -1,5 +1,3 @@
-import org.gradle.api.initialization.resolve.RepositoriesMode
-
 rootProject.name = "mikke-backend"
 
 pluginManagement {

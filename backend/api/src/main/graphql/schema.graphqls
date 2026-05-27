@@ -1,13 +1,13 @@
 schema {
-  query: Query
-  mutation: Mutation
+    query: Query
+    mutation: Mutation
 }
 
 "Marks the field, argument, input field or enum value as deprecated"
 directive @deprecated(
     "The reason for the deprecation"
     reason: String! = "No longer supported"
-  ) on FIELD_DEFINITION | ARGUMENT_DEFINITION | ENUM_VALUE | INPUT_FIELD_DEFINITION
+) on FIELD_DEFINITION | ARGUMENT_DEFINITION | ENUM_VALUE | INPUT_FIELD_DEFINITION
 
 "This directive disables error propagation when a non nullable field returns null for the given operation."
 directive @experimental_disableErrorPropagation on QUERY | MUTATION | SUBSCRIPTION
@@ -16,7 +16,7 @@ directive @experimental_disableErrorPropagation on QUERY | MUTATION | SUBSCRIPTI
 directive @include(
     "Included when true."
     if: Boolean!
-  ) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 
 "Indicates an Input Object is a OneOf Input Object."
 directive @oneOf on INPUT_OBJECT
@@ -25,360 +25,360 @@ directive @oneOf on INPUT_OBJECT
 directive @skip(
     "Skipped when true."
     if: Boolean!
-  ) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 
 "Exposes a URL that specifies the behaviour of this scalar."
 directive @specifiedBy(
     "The URL that specifies the behaviour of this scalar."
     url: String!
-  ) on SCALAR
+) on SCALAR
 
 type AuthPayload {
-  session: AuthSession!
+    session: AuthSession!
 }
 
 type AuthSession {
-  absoluteExpiresAt: String!
-  idleExpiresAt: String!
-  sessionId: String!
+    absoluteExpiresAt: String!
+    idleExpiresAt: String!
+    sessionId: String!
 }
 
 type BlockRelation {
-  blockedUserId: String!
-  blockerUserId: String!
-  createdAt: String!
+    blockedUserId: String!
+    blockerUserId: String!
+    createdAt: String!
 }
 
 type BooleanPayload {
-  success: Boolean!
+    success: Boolean!
 }
 
 type ChangePasswordPayload {
-  success: Boolean!
+    success: Boolean!
 }
 
 type CurrentUser {
-  avatarMediaId: String
-  createdAt: String!
-  displayName: String!
-  email: String!
-  id: String!
-  status: String!
-  updatedAt: String!
-  username: String!
+    avatarMediaId: String
+    createdAt: String!
+    displayName: String!
+    email: String!
+    id: String!
+    status: String!
+    updatedAt: String!
+    username: String!
 }
 
 type DeletePostPayload {
-  success: Boolean!
+    success: Boolean!
 }
 
 type FriendPage {
-  pageInfo: PageInfo!
-  users: [User!]!
+    pageInfo: PageInfo!
+    users: [User!]!
 }
 
 type FriendRequest {
-  canceledAt: String
-  createdAt: String!
-  id: String!
-  receiver: User
-  respondedAt: String
-  sender: User
-  status: String!
+    canceledAt: String
+    createdAt: String!
+    id: String!
+    receiver: User
+    respondedAt: String
+    sender: User
+    status: String!
 }
 
 type FriendRequestPage {
-  pageInfo: PageInfo!
-  requests: [FriendRequest!]!
+    pageInfo: PageInfo!
+    requests: [FriendRequest!]!
 }
 
 type Friendship {
-  createdAt: String!
-  id: String!
-  removedAt: String
-  status: String!
-  userHighId: String!
-  userLowId: String!
+    createdAt: String!
+    id: String!
+    removedAt: String
+    status: String!
+    userHighId: String!
+    userLowId: String!
 }
 
 type FriendshipSummary {
-  canSendRequest: Boolean!
-  canViewPosts: Boolean!
-  relationStatus: String!
-  targetUserId: String!
+    canSendRequest: Boolean!
+    canViewPosts: Boolean!
+    relationStatus: String!
+    targetUserId: String!
 }
 
 type GeoPoint {
-  latitude: Float!
-  longitude: Float!
+    latitude: Float!
+    longitude: Float!
 }
 
 type Guess {
-  createdAt: String!
-  distanceMeters: Float!
-  guessedPoint: GeoPoint!
-  id: String!
-  postAuthorUserId: String!
-  postId: String!
-  score: Int!
-  userId: String!
+    createdAt: String!
+    distanceMeters: Float!
+    guessedPoint: GeoPoint!
+    id: String!
+    postAuthorUserId: String!
+    postId: String!
+    score: Int!
+    userId: String!
 }
 
 type GuessRankingPage {
-  entries: [GuessUserRankingEntry!]!
-  pageInfo: PageInfo!
+    entries: [GuessUserRankingEntry!]!
+    pageInfo: PageInfo!
 }
 
 type GuessResult {
-  correctPoint: GeoPoint!
-  distanceMeters: Float!
-  guess: Guess!
-  score: Int!
+    correctPoint: GeoPoint!
+    distanceMeters: Float!
+    guess: Guess!
+    score: Int!
 }
 
 type GuessUserRankingEntry {
-  averageScore: Float!
-  bestDistanceMeters: Float!
-  guessCount: String!
-  rank: String!
-  totalScore: String!
-  user: User
+    averageScore: Float!
+    bestDistanceMeters: Float!
+    guessCount: String!
+    rank: String!
+    totalScore: String!
+    user: User
 }
 
 type LogoutPayload {
-  success: Boolean!
+    success: Boolean!
 }
 
 type Media {
-  contentLengthBytes: String!
-  contentType: String!
-  createdAt: String!
-  id: String!
-  originalUrl: String!
-  status: String!
-  thumbnailUrl: String!
-  uploadedAt: String!
+    contentLengthBytes: String!
+    contentType: String!
+    createdAt: String!
+    id: String!
+    originalUrl: String!
+    status: String!
+    thumbnailUrl: String!
+    uploadedAt: String!
 }
 
 type MediaUploadUrl {
-  expiresAt: String!
-  mediaId: String!
-  objectKey: String!
-  requiredHeaders: [RequiredHeader!]!
-  uploadMethod: String!
-  uploadUrl: String!
+    expiresAt: String!
+    mediaId: String!
+    objectKey: String!
+    requiredHeaders: [RequiredHeader!]!
+    uploadMethod: String!
+    uploadUrl: String!
 }
 
 type Mutation {
-  acceptFriendRequest(input: FriendRequestIdInput!): Friendship!
-  blockUser(input: UserIdInput!): BlockRelation!
-  cancelFriendRequest(input: FriendRequestIdInput!): FriendRequest!
-  changePassword(input: ChangePasswordInput!): ChangePasswordPayload!
-  checkMediaUpload(input: CheckMediaUploadInput!): UploadCheck!
-  createMediaUploadUrl(input: CreateMediaUploadInput!): MediaUploadUrl!
-  createPost(input: CreatePostInput!): Post!
-  deletePost(postId: String!): DeletePostPayload!
-  login(input: LoginInput!): AuthPayload!
-  logout: LogoutPayload!
-  register(input: RegisterInput!): AuthPayload!
-  rejectFriendRequest(input: FriendRequestIdInput!): FriendRequest!
-  removeFriend(input: UserIdInput!): BooleanPayload!
-  sendFriendRequest(input: SendFriendRequestInput!): FriendRequest!
-  submitGuess(input: SubmitGuessInput!): GuessResult!
-  unblockUser(input: UserIdInput!): BooleanPayload!
-  updatePostCaption(input: UpdatePostCaptionInput!): Post!
-  updatePostVisibility(input: UpdatePostVisibilityInput!): Post!
-  updateProfile(input: UpdateProfileInput!): CurrentUser!
+    acceptFriendRequest(input: FriendRequestIdInput!): Friendship!
+    blockUser(input: UserIdInput!): BlockRelation!
+    cancelFriendRequest(input: FriendRequestIdInput!): FriendRequest!
+    changePassword(input: ChangePasswordInput!): ChangePasswordPayload!
+    checkMediaUpload(input: CheckMediaUploadInput!): UploadCheck!
+    createMediaUploadUrl(input: CreateMediaUploadInput!): MediaUploadUrl!
+    createPost(input: CreatePostInput!): Post!
+    deletePost(postId: String!): DeletePostPayload!
+    login(input: LoginInput!): AuthPayload!
+    logout: LogoutPayload!
+    register(input: RegisterInput!): AuthPayload!
+    rejectFriendRequest(input: FriendRequestIdInput!): FriendRequest!
+    removeFriend(input: UserIdInput!): BooleanPayload!
+    sendFriendRequest(input: SendFriendRequestInput!): FriendRequest!
+    submitGuess(input: SubmitGuessInput!): GuessResult!
+    unblockUser(input: UserIdInput!): BooleanPayload!
+    updatePostCaption(input: UpdatePostCaptionInput!): Post!
+    updatePostVisibility(input: UpdatePostVisibilityInput!): Post!
+    updateProfile(input: UpdateProfileInput!): CurrentUser!
 }
 
 type PageInfo {
-  hasNextPage: Boolean!
-  nextPageToken: String!
+    hasNextPage: Boolean!
+    nextPageToken: String!
 }
 
 type Post {
-  authorUserId: String!
-  caption: String!
-  createdAt: String!
-  id: String!
-  mediaId: String!
-  status: String!
-  updatedAt: String!
-  visibility: String!
+    authorUserId: String!
+    caption: String!
+    createdAt: String!
+    id: String!
+    mediaId: String!
+    status: String!
+    updatedAt: String!
+    visibility: String!
 }
 
 type PostGuessStats {
-  averageDistanceMeters: Float!
-  averageScore: Float!
-  bestDistanceMeters: Float!
-  guessCount: String!
-  postId: String!
+    averageDistanceMeters: Float!
+    averageScore: Float!
+    bestDistanceMeters: Float!
+    guessCount: String!
+    postId: String!
 }
 
 type PostRankingPage {
-  entries: [PostUserRankingEntry!]!
-  pageInfo: PageInfo!
+    entries: [PostUserRankingEntry!]!
+    pageInfo: PageInfo!
 }
 
 type PostUserRankingEntry {
-  postCount: String!
-  rank: String!
-  user: User
+    postCount: String!
+    rank: String!
+    user: User
 }
 
 type Query {
-  friends(page: PageInput, targetUserId: String!): FriendPage!
-  friendship(targetUserId: String!): FriendshipSummary!
-  guessRankings(metric: GuessRankingMetric!, page: PageInput): GuessRankingPage!
-  health: String!
-  incomingFriendRequests(page: PageInput): FriendRequestPage!
-  me: CurrentUser!
-  myGuessForPost(postId: String!): GuessResult
-  myPosts(page: PageInput): TimelinePage!
-  outgoingFriendRequests(page: PageInput): FriendRequestPage!
-  post(id: String!): TimelineItem!
-  postGuessStats(postId: String!): PostGuessStats!
-  postRankings(page: PageInput): PostRankingPage!
-  searchUsers(page: PageInput, query: String!): UserSearchPayload!
-  timeline(page: PageInput): TimelinePage!
-  user(id: String!): User!
-  userScoreSummary(userId: String!): UserScoreSummary!
+    friends(page: PageInput, targetUserId: String!): FriendPage!
+    friendship(targetUserId: String!): FriendshipSummary!
+    guessRankings(metric: GuessRankingMetric!, page: PageInput): GuessRankingPage!
+    health: String!
+    incomingFriendRequests(page: PageInput): FriendRequestPage!
+    me: CurrentUser!
+    myGuessForPost(postId: String!): GuessResult
+    myPosts(page: PageInput): TimelinePage!
+    outgoingFriendRequests(page: PageInput): FriendRequestPage!
+    post(id: String!): TimelineItem!
+    postGuessStats(postId: String!): PostGuessStats!
+    postRankings(page: PageInput): PostRankingPage!
+    searchUsers(page: PageInput, query: String!): UserSearchPayload!
+    timeline(page: PageInput): TimelinePage!
+    user(id: String!): User!
+    userScoreSummary(userId: String!): UserScoreSummary!
 }
 
 type RequiredHeader {
-  name: String!
-  value: String!
+    name: String!
+    value: String!
 }
 
 type TimelineItem {
-  author: User
-  media: Media
-  myGuessResult: GuessResult
-  post: Post!
+    author: User
+    media: Media
+    myGuessResult: GuessResult
+    post: Post!
 }
 
 type TimelinePage {
-  items: [TimelineItem!]!
-  pageInfo: PageInfo!
+    items: [TimelineItem!]!
+    pageInfo: PageInfo!
 }
 
 type UploadCheck {
-  contentLengthBytes: String!
-  contentType: String!
-  etag: String!
-  mediaId: String!
-  objectKey: String!
-  status: String!
+    contentLengthBytes: String!
+    contentType: String!
+    etag: String!
+    mediaId: String!
+    objectKey: String!
+    status: String!
 }
 
 type User {
-  avatarMediaId: String
-  displayName: String!
-  id: String!
-  status: String!
-  username: String!
+    avatarMediaId: String
+    displayName: String!
+    id: String!
+    status: String!
+    username: String!
 }
 
 type UserScoreSummary {
-  averageScore: Float!
-  bestDistanceMeters: Float!
-  guessCount: String!
-  totalScore: String!
-  userId: String!
+    averageScore: Float!
+    bestDistanceMeters: Float!
+    guessCount: String!
+    totalScore: String!
+    userId: String!
 }
 
 type UserSearchPayload {
-  pageInfo: PageInfo!
-  users: [User!]!
+    pageInfo: PageInfo!
+    users: [User!]!
 }
 
 enum GuessRankingMetric {
-  AVERAGE_SCORE
-  GUESS_COUNT
-  TOTAL_SCORE
+    AVERAGE_SCORE
+    GUESS_COUNT
+    TOTAL_SCORE
 }
 
 enum PostVisibility {
-  FRIENDS
-  PRIVATE
+    FRIENDS
+    PRIVATE
 }
 
 input ChangePasswordInput {
-  currentPassword: String!
-  newPassword: String!
+    currentPassword: String!
+    newPassword: String!
 }
 
 input CheckMediaUploadInput {
-  mediaId: String!
-  objectKey: String!
+    mediaId: String!
+    objectKey: String!
 }
 
 input CreateMediaUploadInput {
-  contentLengthBytes: Int!
-  contentType: String!
-  originalFileName: String
+    contentLengthBytes: Int!
+    contentType: String!
+    originalFileName: String
 }
 
 input CreatePostInput {
-  accuracyMeters: Float!
-  caption: String
-  location: GeoPointInput!
-  mediaId: String!
-  visibility: PostVisibility!
+    accuracyMeters: Float!
+    caption: String
+    location: GeoPointInput!
+    mediaId: String!
+    visibility: PostVisibility!
 }
 
 input FriendRequestIdInput {
-  friendRequestId: String!
+    friendRequestId: String!
 }
 
 input GeoPointInput {
-  latitude: Float!
-  longitude: Float!
+    latitude: Float!
+    longitude: Float!
 }
 
 input LoginInput {
-  loginId: String!
-  password: String!
+    loginId: String!
+    password: String!
 }
 
 input PageInput {
-  pageSize: Int
-  pageToken: String
+    pageSize: Int
+    pageToken: String
 }
 
 input RegisterInput {
-  displayName: String!
-  email: String!
-  password: String!
-  username: String!
+    displayName: String!
+    email: String!
+    password: String!
+    username: String!
 }
 
 input SendFriendRequestInput {
-  receiverUserId: String!
+    receiverUserId: String!
 }
 
 input SubmitGuessInput {
-  guessedPoint: GeoPointInput!
-  postId: String!
+    guessedPoint: GeoPointInput!
+    postId: String!
 }
 
 input UpdatePostCaptionInput {
-  caption: String!
-  postId: String!
+    caption: String!
+    postId: String!
 }
 
 input UpdatePostVisibilityInput {
-  postId: String!
-  visibility: PostVisibility!
+    postId: String!
+    visibility: PostVisibility!
 }
 
 input UpdateProfileInput {
-  avatarMediaId: String
-  displayName: String
-  username: String
+    avatarMediaId: String
+    displayName: String
+    username: String
 }
 
 input UserIdInput {
-  userId: String!
+    userId: String!
 }
 

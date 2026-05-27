@@ -1,7 +1,10 @@
 package jp.xhw.mikke.services.identity.application.port
 
 import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
-import jp.xhw.mikke.services.identity.model.*
+import jp.xhw.mikke.services.identity.model.Email
+import jp.xhw.mikke.services.identity.model.IdentityUser
+import jp.xhw.mikke.services.identity.model.PasswordHash
+import jp.xhw.mikke.services.identity.model.UserId
 import kotlin.time.Instant
 
 interface IdentityUserRepository {

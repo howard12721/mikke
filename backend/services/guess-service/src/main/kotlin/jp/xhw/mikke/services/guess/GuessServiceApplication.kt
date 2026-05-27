@@ -13,13 +13,7 @@ import jp.xhw.mikke.platform.events.ProcessedEventStore
 import jp.xhw.mikke.platform.events.subscription.EventHandlerRegistration
 import jp.xhw.mikke.platform.events.subscription.RedisDeadLetterSink
 import jp.xhw.mikke.platform.events.subscription.RedisEventSubscription
-import jp.xhw.mikke.platform.grpc.GrpcServerExceptionHandling
-import jp.xhw.mikke.platform.grpc.InternalCallerClientInterceptor
-import jp.xhw.mikke.platform.grpc.InternalRpcServerInterceptor
-import jp.xhw.mikke.platform.grpc.grpcClientChannelFromEnvironment
-import jp.xhw.mikke.platform.grpc.grpcServer
-import jp.xhw.mikke.platform.grpc.installGrpcHealth
-import jp.xhw.mikke.platform.grpc.startAndAwait
+import jp.xhw.mikke.platform.grpc.*
 import jp.xhw.mikke.platform.outbox.OutboxRelay
 import jp.xhw.mikke.platform.outbox.RedisOutboxPublisher
 import jp.xhw.mikke.platform.redis.RedisStreamConsumerGroup
@@ -87,7 +81,9 @@ fun main() {
                     batchSize = System.getenv("OUTBOX_RELAY_BATCH_SIZE")?.toIntOrNull() ?: 100,
                     leaseDuration = System.getenv("OUTBOX_RELAY_LEASE_SECONDS")?.toLongOrNull()?.seconds ?: 30.seconds,
                 ),
-            idleDelay = System.getenv("OUTBOX_RELAY_IDLE_DELAY_MILLIS")?.toLongOrNull()?.milliseconds ?: 500.milliseconds,
+            idleDelay =
+                System.getenv("OUTBOX_RELAY_IDLE_DELAY_MILLIS")?.toLongOrNull()?.milliseconds
+                    ?: 500.milliseconds,
             errorDelay = System.getenv("OUTBOX_RELAY_ERROR_DELAY_MILLIS")?.toLongOrNull()?.milliseconds ?: 5.seconds,
         )
     outboxRelay.start()

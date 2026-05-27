@@ -11,11 +11,7 @@ import jp.xhw.mikke.platform.events.ProcessedEventStore
 import jp.xhw.mikke.platform.events.subscription.EventHandlerRegistration
 import jp.xhw.mikke.platform.events.subscription.RedisDeadLetterSink
 import jp.xhw.mikke.platform.events.subscription.RedisEventSubscription
-import jp.xhw.mikke.platform.grpc.GrpcServerExceptionHandling
-import jp.xhw.mikke.platform.grpc.InternalRpcServerInterceptor
-import jp.xhw.mikke.platform.grpc.grpcServer
-import jp.xhw.mikke.platform.grpc.installGrpcHealth
-import jp.xhw.mikke.platform.grpc.startAndAwait
+import jp.xhw.mikke.platform.grpc.*
 import jp.xhw.mikke.platform.outbox.OutboxRelay
 import jp.xhw.mikke.platform.outbox.RedisOutboxPublisher
 import jp.xhw.mikke.platform.redis.RedisStreamConsumerGroup

@@ -3,15 +3,7 @@ package jp.xhw.mikke.services.media.infrastructure.outbox
 import jp.xhw.mikke.events.media.MediaEventTypes
 import jp.xhw.mikke.platform.time.toKotlinInstant
 import jp.xhw.mikke.platform.uuid.formatGrpcUuid
-import jp.xhw.mikke.services.media.model.MediaId
-import jp.xhw.mikke.services.media.model.MediaRecord
-import jp.xhw.mikke.services.media.model.MediaStatus
-import jp.xhw.mikke.services.media.model.MediaVariantId
-import jp.xhw.mikke.services.media.model.MediaVariantKind
-import jp.xhw.mikke.services.media.model.MediaVariantRecord
-import jp.xhw.mikke.services.media.model.MediaVariantStatus
-import jp.xhw.mikke.services.media.model.UploadMethod
-import jp.xhw.mikke.services.media.model.UploaderUserId
+import jp.xhw.mikke.services.media.model.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -52,7 +44,14 @@ class ExposedMediaOutboxTest {
             assertEquals(media.contentLengthBytes.toString(), payload.string("content_length_bytes"))
             assertEquals("2026-05-18T01:17:03.456789Z", payload.string("expires_at"))
             assertEquals(
-                setOf("media_id", "uploader_user_id", "object_key", "content_type", "content_length_bytes", "expires_at"),
+                setOf(
+                    "media_id",
+                    "uploader_user_id",
+                    "object_key",
+                    "content_type",
+                    "content_length_bytes",
+                    "expires_at",
+                ),
                 payload.keys,
             )
         }

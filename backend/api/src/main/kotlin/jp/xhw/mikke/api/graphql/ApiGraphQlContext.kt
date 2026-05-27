@@ -31,8 +31,11 @@ class ApiGraphQlContextFactory(
     private fun buildRequestContext(request: ApplicationRequest): ApiRequestContext {
         val authorizationHeader = request.header(HttpHeaders.Authorization)?.trim()?.takeIf { it.isNotEmpty() }
         return when (val parsed = SessionAuthorization.parse(authorizationHeader)) {
-            ParsedSessionAuthorization.Missing -> ApiRequestContext()
-            ParsedSessionAuthorization.Malformed ->
+            ParsedSessionAuthorization.Missing -> {
+                ApiRequestContext()
+            }
+
+            ParsedSessionAuthorization.Malformed -> {
                 ApiRequestContext(
                     sessionAuthFailure =
                         if (authorizationHeader?.startsWith("Session", ignoreCase = true) == true) {
@@ -41,15 +44,20 @@ class ApiGraphQlContextFactory(
                             null
                         },
                 )
-            is ParsedSessionAuthorization.Valid ->
+            }
+
+            is ParsedSessionAuthorization.Valid -> {
                 when (val result = sessionAuthenticator.authenticate(parsed.sessionId)) {
                     is GatewayAuthenticationResult.Authenticated -> {
                         touchScheduler.scheduleTouchIfNeeded(result.actor.sessionHash)
                         ApiRequestContext(actor = result.actor)
                     }
-                    is GatewayAuthenticationResult.Failed ->
+
+                    is GatewayAuthenticationResult.Failed -> {
                         ApiRequestContext(sessionAuthFailure = result.reason)
+                    }
                 }
+            }
         }
     }
 }

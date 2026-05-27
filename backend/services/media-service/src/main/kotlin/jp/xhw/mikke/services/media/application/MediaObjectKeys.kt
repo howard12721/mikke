@@ -2,7 +2,7 @@ package jp.xhw.mikke.services.media.application
 
 import jp.xhw.mikke.services.media.model.MediaVariantKind
 import java.security.SecureRandom
-import java.util.Base64
+import java.util.*
 
 object MediaObjectKeys {
     private const val KEY_BYTE_LENGTH = 32

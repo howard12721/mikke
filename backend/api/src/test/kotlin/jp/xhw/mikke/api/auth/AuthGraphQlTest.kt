@@ -15,7 +15,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import java.util.Base64
+import java.util.*
 
 class AuthGraphQlTest {
     private val json = Json { ignoreUnknownKeys = true }

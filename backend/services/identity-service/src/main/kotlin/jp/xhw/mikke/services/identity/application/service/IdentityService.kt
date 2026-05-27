@@ -9,11 +9,7 @@ import jp.xhw.mikke.platform.database.TransactionRunner
 import jp.xhw.mikke.platform.pagination.PageSlice
 import jp.xhw.mikke.platform.pagination.ValidatedPageRequest
 import jp.xhw.mikke.services.identity.application.command.*
-import jp.xhw.mikke.services.identity.application.exception.InvalidCredentialsException
-import jp.xhw.mikke.services.identity.application.exception.InvalidIdentityInputException
-import jp.xhw.mikke.services.identity.application.exception.InvalidSessionHashException
-import jp.xhw.mikke.services.identity.application.exception.SessionVersionProjectionException
-import jp.xhw.mikke.services.identity.application.exception.UserNotFoundException
+import jp.xhw.mikke.services.identity.application.exception.*
 import jp.xhw.mikke.services.identity.application.pagination.SearchUsersCursor
 import jp.xhw.mikke.services.identity.application.port.ClientSessionStore
 import jp.xhw.mikke.services.identity.application.port.IdentityUserOutbox
@@ -105,7 +101,12 @@ class IdentityService(
         val record =
             clientSessionStore.findSession(sessionHash)
                 ?: return
-        if (SessionValidation.validateRecord(record, projectedUserSessionVersion = record.userSessionVersion, now = now) != null) {
+        if (SessionValidation.validateRecord(
+                record,
+                projectedUserSessionVersion = record.userSessionVersion,
+                now = now,
+            ) != null
+        ) {
             return
         }
         if (!SessionValidation.shouldTouchSession(record, now)) {

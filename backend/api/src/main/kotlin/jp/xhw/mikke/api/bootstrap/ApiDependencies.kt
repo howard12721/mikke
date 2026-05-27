@@ -1,11 +1,6 @@
 package jp.xhw.mikke.api.bootstrap
 
-import jp.xhw.mikke.api.auth.application.AuthApiService
-import jp.xhw.mikke.api.auth.application.GatewaySessionAuthenticator
-import jp.xhw.mikke.api.auth.application.GatewaySessionReader
-import jp.xhw.mikke.api.auth.application.GatewaySessionTouchScheduler
-import jp.xhw.mikke.api.auth.application.IdentityAuthGateway
-import jp.xhw.mikke.api.auth.application.IdentitySessionGateway
+import jp.xhw.mikke.api.auth.application.*
 import jp.xhw.mikke.api.auth.infrastructure.GrpcIdentityAuthGateway
 import jp.xhw.mikke.api.auth.infrastructure.GrpcIdentitySessionGateway
 import jp.xhw.mikke.api.auth.infrastructure.RedisGatewaySessionReader
@@ -295,7 +290,7 @@ private object UnavailableGuessGateway : GuessGateway {
     override suspend fun getMyGuessForPost(
         context: ApiRequestContext,
         postId: String,
-    ): GuessResult? = unavailableFeature()
+    ): GuessResult = unavailableFeature()
 
     override suspend fun batchGetMyGuessesForPosts(
         context: ApiRequestContext,
