@@ -16,14 +16,13 @@ service IdentityService {
   // Authenticates a user and returns a session for the client.
   rpc LoginUser(LoginUserRequest) returns (LoginUserResponse);
 
-  // Exchanges a refresh token for a new session.
-  rpc RefreshSession(RefreshSessionRequest) returns (RefreshSessionResponse);
+  // Extends idle lifetime for an active session.
+  rpc TouchSession(TouchSessionRequest) returns (TouchSessionResponse);
 
-  // Revokes the current refresh session.
+  // Revokes the current client session.
   rpc LogoutSession(LogoutSessionRequest) returns (LogoutSessionResponse);
 
   // Returns the current authenticated user.
-  // The caller is identified from auth context (e.g. JWT sub), not from request fields.
   rpc GetMe(GetMeRequest) returns (GetMeResponse);
 
   // Returns a public user profile by id.
@@ -68,21 +67,21 @@ message LoginUserResponse {
   AuthSession session = 2;
 }
 
-message RefreshSessionRequest {
-  string refresh_token = 1;
+message TouchSessionRequest {
+  string session_hash = 1;
 }
 
-message RefreshSessionResponse {
-  AuthSession session = 1;
-}
+message TouchSessionResponse {}
 
 message LogoutSessionRequest {
-  string refresh_token = 1;
+  string session_hash = 1;
 }
 
 message LogoutSessionResponse {}
 
-message GetMeRequest {}
+message GetMeRequest {
+  mikke.common.v1.ActorContext actor = 1;
+}
 
 message GetMeResponse {
   User user = 1;
@@ -115,22 +114,26 @@ message SearchUsersResponse {
 }
 
 message UpdateProfileRequest {
-  string username = 1;
-  string display_name = 2;
-  string avatar_media_id = 3;
+  mikke.common.v1.ActorContext actor = 1;
+  string username = 2;
+  string display_name = 3;
+  string avatar_media_id = 4;
 }
 
 message UpdateProfileResponse {
   User user = 1;
 }
 
-message DeactivateAccountRequest {}
+message DeactivateAccountRequest {
+  mikke.common.v1.ActorContext actor = 1;
+}
 
 message DeactivateAccountResponse {}
 
 message ChangePasswordRequest {
-  string current_password = 1;
-  string new_password = 2;
+  mikke.common.v1.ActorContext actor = 1;
+  string current_password = 2;
+  string new_password = 3;
 }
 
 message ChangePasswordResponse {}
@@ -155,10 +158,9 @@ message PublicUser {
 }
 
 message AuthSession {
-  string access_token = 1;
-  string refresh_token = 2;
-  google.protobuf.Timestamp access_token_expires_at = 3;
-  google.protobuf.Timestamp refresh_token_expires_at = 4;
+  string session_id = 1;
+  google.protobuf.Timestamp idle_expires_at = 2;
+  google.protobuf.Timestamp absolute_expires_at = 3;
 }
 
 enum UserStatus {

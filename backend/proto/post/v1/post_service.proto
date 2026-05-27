@@ -28,6 +28,7 @@ message CreatePostRequest {
   PostVisibility visibility = 3;
   mikke.common.v1.GeoPoint location = 4;
   double accuracy_meters = 5;
+  mikke.common.v1.ActorContext actor = 6;
 }
 
 message CreatePostResponse {
@@ -36,6 +37,7 @@ message CreatePostResponse {
 
 message GetPostRequest {
   string post_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message GetPostResponse {
@@ -46,6 +48,7 @@ message GetPostResponse {
 
 message BatchGetPostsRequest {
   repeated string post_ids = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message BatchGetPostsResponse {
@@ -53,8 +56,10 @@ message BatchGetPostsResponse {
 }
 
 message ListVisiblePostsRequest {
-  string viewer_user_id = 1;
+  reserved 1;
+  reserved "viewer_user_id";
   mikke.common.v1.PageRequest page = 2;
+  mikke.common.v1.ActorContext actor = 3;
 }
 
 message ListVisiblePostsResponse {
@@ -65,6 +70,7 @@ message ListVisiblePostsResponse {
 message ListUserPostsRequest {
   string user_id = 1;
   mikke.common.v1.PageRequest page = 2;
+  mikke.common.v1.ActorContext actor = 3;
 }
 
 message ListUserPostsResponse {
@@ -74,6 +80,7 @@ message ListUserPostsResponse {
 
 message ListMyPostsRequest {
   mikke.common.v1.PageRequest page = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message ListMyPostsResponse {
@@ -83,6 +90,7 @@ message ListMyPostsResponse {
 
 message DeletePostRequest {
   string post_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message DeletePostResponse {}
@@ -90,6 +98,7 @@ message DeletePostResponse {}
 message UpdatePostCaptionRequest {
   string post_id = 1;
   string caption = 2;
+  mikke.common.v1.ActorContext actor = 3;
 }
 
 message UpdatePostCaptionResponse {
@@ -99,6 +108,7 @@ message UpdatePostCaptionResponse {
 message UpdatePostVisibilityRequest {
   string post_id = 1;
   PostVisibility visibility = 2;
+  mikke.common.v1.ActorContext actor = 3;
 }
 
 message UpdatePostVisibilityResponse {
@@ -107,8 +117,7 @@ message UpdatePostVisibilityResponse {
 
 message CheckPostVisibilityRequest {
   string post_id = 1;
-  reserved 2;
-  reserved "viewer_user_id";
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message CheckPostVisibilityResponse {

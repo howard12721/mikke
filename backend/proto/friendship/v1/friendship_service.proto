@@ -27,6 +27,7 @@ service FriendshipService {
 
 message SendFriendRequestRequest {
   string receiver_user_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message SendFriendRequestResponse {
@@ -35,6 +36,7 @@ message SendFriendRequestResponse {
 
 message AcceptFriendRequestRequest {
   string friend_request_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message AcceptFriendRequestResponse {
@@ -43,6 +45,7 @@ message AcceptFriendRequestResponse {
 
 message RejectFriendRequestRequest {
   string friend_request_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message RejectFriendRequestResponse {
@@ -51,6 +54,7 @@ message RejectFriendRequestResponse {
 
 message CancelFriendRequestRequest {
   string friend_request_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message CancelFriendRequestResponse {
@@ -59,12 +63,14 @@ message CancelFriendRequestResponse {
 
 message RemoveFriendRequest {
   string friend_user_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message RemoveFriendResponse {}
 
 message BlockUserRequest {
   string blocked_user_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message BlockUserResponse {
@@ -73,12 +79,14 @@ message BlockUserResponse {
 
 message UnblockUserRequest {
   string blocked_user_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message UnblockUserResponse {}
 
 message GetFriendshipRequest {
   string target_user_id = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message GetFriendshipResponse {
@@ -88,6 +96,7 @@ message GetFriendshipResponse {
 message ListFriendsRequest {
   string target_user_id = 1;
   mikke.common.v1.PageRequest page = 2;
+  mikke.common.v1.ActorContext actor = 3;
 }
 
 message ListFriendsResponse {
@@ -97,6 +106,7 @@ message ListFriendsResponse {
 
 message ListIncomingFriendRequestsRequest {
   mikke.common.v1.PageRequest page = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message ListIncomingFriendRequestsResponse {
@@ -106,6 +116,7 @@ message ListIncomingFriendRequestsResponse {
 
 message ListOutgoingFriendRequestsRequest {
   mikke.common.v1.PageRequest page = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message ListOutgoingFriendRequestsResponse {
@@ -115,6 +126,7 @@ message ListOutgoingFriendRequestsResponse {
 
 message BatchGetFriendshipSummariesRequest {
   repeated string target_user_ids = 1;
+  mikke.common.v1.ActorContext actor = 2;
 }
 
 message BatchGetFriendshipSummariesResponse {
@@ -123,6 +135,7 @@ message BatchGetFriendshipSummariesResponse {
 
 message CheckCanViewUserPostsRequest {
   string owner_user_id = 1;
+  string viewer_user_id = 2;
 }
 
 message CheckCanViewUserPostsResponse {
