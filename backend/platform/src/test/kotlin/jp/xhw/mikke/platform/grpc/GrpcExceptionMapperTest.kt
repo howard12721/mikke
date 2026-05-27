@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Test
 import java.util.logging.Logger
-import kotlinx.coroutines.CancellationException as CoroutineCancellationException
+import kotlin.coroutines.cancellation.CancellationException
 import java.util.concurrent.CancellationException as FutureCancellationException
 
 class GrpcExceptionMapperTest {
@@ -100,10 +100,10 @@ class GrpcExceptionMapperTest {
 
     @Test
     fun `coroutine exception mapping rethrows cancellation`() {
-        val cancellation = CoroutineCancellationException("cancelled")
+        val cancellation = CancellationException("cancelled")
 
         val thrown =
-            org.junit.jupiter.api.assertThrows<CoroutineCancellationException> {
+            org.junit.jupiter.api.assertThrows<CancellationException> {
                 runBlocking {
                     withGrpcExceptionMapping(
                         logger = testLogger,
@@ -157,10 +157,10 @@ class GrpcExceptionMapperTest {
 
     @Test
     fun `grpc status mapper rethrows cancellation`() {
-        val cancellation = CoroutineCancellationException("cancelled")
+        val cancellation = CancellationException("cancelled")
 
         val thrown =
-            org.junit.jupiter.api.assertThrows<CoroutineCancellationException> {
+            org.junit.jupiter.api.assertThrows<CancellationException> {
                 cancellation.toGrpcStatusRuntimeException(
                     logger = testLogger,
                     serviceName = "test-service",
