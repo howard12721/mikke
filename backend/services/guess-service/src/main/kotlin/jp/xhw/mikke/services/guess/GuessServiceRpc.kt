@@ -1,9 +1,8 @@
 package jp.xhw.mikke.services.guess
 
-import io.grpc.Status
+import jp.xhw.mikke.common.v1.ActorContext
 import jp.xhw.mikke.common.v1.PageInfo
 import jp.xhw.mikke.guess.v1.*
-import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
 import jp.xhw.mikke.platform.grpc.*
 import jp.xhw.mikke.platform.pagination.PageRequestInput
 import jp.xhw.mikke.platform.pagination.validate
@@ -20,7 +19,7 @@ class GuessServiceRpc(
     private val guessService: GuessService,
 ) : GuessServiceGrpcKt.GuessServiceCoroutineImplBase() {
     override suspend fun submitGuess(request: SubmitGuessRequest): SubmitGuessResponse {
-        val userId = requireAuthenticatedUserId()
+        val userId = request.actor.toUserId()
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         if (!request.hasGuessedPoint()) {
@@ -45,7 +44,7 @@ class GuessServiceRpc(
     }
 
     override suspend fun getGuess(request: GetGuessRequest): GetGuessResponse {
-        val viewerUserId = requireAuthenticatedUserId()
+        val viewerUserId = request.actor.toUserId()
         val guessId = parseGrpcUuid(request.guessId, "guess_id").let(::GuessId)
 
         val guess =
@@ -60,7 +59,7 @@ class GuessServiceRpc(
     }
 
     override suspend fun getMyGuessForPost(request: GetMyGuessForPostRequest): GetMyGuessForPostResponse {
-        val viewerUserId = requireAuthenticatedUserId()
+        val viewerUserId = request.actor.toUserId()
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         val result =
@@ -74,7 +73,7 @@ class GuessServiceRpc(
     }
 
     override suspend fun batchGetMyGuessesForPosts(request: BatchGetMyGuessesForPostsRequest): BatchGetMyGuessesForPostsResponse {
-        val viewerUserId = requireAuthenticatedUserId()
+        val viewerUserId = request.actor.toUserId()
         val postIds = request.postIdsList.map { parseGrpcUuid(it, "post_id").let(::PostId) }
 
         val results =
@@ -89,7 +88,7 @@ class GuessServiceRpc(
     }
 
     override suspend fun listGuessesForPost(request: ListGuessesForPostRequest): ListGuessesForPostResponse {
-        val viewerUserId = requireAuthenticatedUserId()
+        val viewerUserId = request.actor.toUserId()
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
         val page =
             PageRequestInput(
@@ -120,7 +119,7 @@ class GuessServiceRpc(
     }
 
     override suspend fun listMyGuesses(request: ListMyGuessesRequest): ListMyGuessesResponse {
-        val viewerUserId = requireAuthenticatedUserId()
+        val viewerUserId = request.actor.toUserId()
         val page =
             PageRequestInput(
                 pageSize = request.page.pageSize,
@@ -149,7 +148,7 @@ class GuessServiceRpc(
     }
 
     override suspend fun getPostGuessStats(request: GetPostGuessStatsRequest): GetPostGuessStatsResponse {
-        val viewerUserId = requireAuthenticatedUserId()
+        val viewerUserId = request.actor.toUserId()
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         val stats =
@@ -178,7 +177,7 @@ class GuessServiceRpc(
     }
 
     override suspend fun listPostRankings(request: ListPostRankingsRequest): ListPostRankingsResponse {
-        requireAuthenticatedUserId()
+        request.actor.toUserId()
         val slice =
             mapRpcExceptions {
                 val page =
@@ -204,7 +203,7 @@ class GuessServiceRpc(
     }
 
     override suspend fun listGuessRankings(request: ListGuessRankingsRequest): ListGuessRankingsResponse {
-        requireAuthenticatedUserId()
+        request.actor.toUserId()
         val slice =
             mapRpcExceptions {
                 val metric = request.metric.toDomain()
@@ -230,12 +229,7 @@ class GuessServiceRpc(
             ).build()
     }
 
-    private fun requireAuthenticatedUserId(): UserId {
-        val principal =
-            GrpcAuthContext.currentPrincipal()
-                ?: throw Status.UNAUTHENTICATED.withDescription("Authentication required").asRuntimeException()
-        return parseGrpcUuid(principal.subject, "user_id").let(::UserId)
-    }
+    private fun ActorContext.toUserId(): UserId = UserId(requireUserUuid())
 }
 
 private suspend inline fun <T> mapRpcExceptions(crossinline block: suspend () -> T): T =

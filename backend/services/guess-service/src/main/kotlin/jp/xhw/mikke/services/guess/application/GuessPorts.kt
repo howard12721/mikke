@@ -86,7 +86,10 @@ data class PostLocationForGuess(
 )
 
 interface PostAccessPort {
-    suspend fun canViewPost(postId: PostId): Boolean
+    suspend fun canViewPost(
+        postId: PostId,
+        viewerUserId: UserId,
+    ): Boolean
 
     suspend fun getPostLocationForGuess(postId: PostId): PostLocationForGuess
 }

@@ -1,9 +1,9 @@
 package jp.xhw.mikke.services.post
 
-import io.grpc.Status
+import jp.xhw.mikke.common.v1.ActorContext
 import jp.xhw.mikke.common.v1.PageInfo
-import jp.xhw.mikke.platform.auth.grpc.GrpcAuthContext
 import jp.xhw.mikke.platform.grpc.*
+import jp.xhw.mikke.platform.grpc.requireUserUuid
 import jp.xhw.mikke.platform.pagination.PageRequestInput
 import jp.xhw.mikke.platform.pagination.validate
 import jp.xhw.mikke.platform.uuid.parseGrpcUuid
@@ -21,7 +21,7 @@ class PostServiceRpc(
     private val postService: PostService,
 ) : PostServiceGrpcKt.PostServiceCoroutineImplBase() {
     override suspend fun createPost(request: CreatePostRequest): CreatePostResponse {
-        val authorUserId = requireAuthenticatedUserId()
+        val authorUserId = request.actor.toUserId()
         val mediaId = parseGrpcUuid(request.mediaId, "media_id").let(::MediaId)
 
         val post =
@@ -53,7 +53,7 @@ class PostServiceRpc(
     }
 
     override suspend fun getPost(request: GetPostRequest): GetPostResponse {
-        val viewerUserId = requireAuthenticatedUserId()
+        val viewerUserId = request.actor.toUserId()
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         val post =
@@ -68,7 +68,7 @@ class PostServiceRpc(
     }
 
     override suspend fun batchGetPosts(request: BatchGetPostsRequest): BatchGetPostsResponse {
-        val viewerUserId = requireAuthenticatedUserId()
+        val viewerUserId = request.actor.toUserId()
         val postIds = request.postIdsList.map { parseGrpcUuid(it, "post_id").let(::PostId) }
 
         val posts =
@@ -83,7 +83,7 @@ class PostServiceRpc(
     }
 
     override suspend fun listVisiblePosts(request: ListVisiblePostsRequest): ListVisiblePostsResponse {
-        val viewerUserId = resolveViewerUserId(request.viewerUserId)
+        val viewerUserId = request.actor.toUserId()
         val page =
             PageRequestInput(
                 pageSize = request.page.pageSize,
@@ -112,7 +112,7 @@ class PostServiceRpc(
     }
 
     override suspend fun listUserPosts(request: ListUserPostsRequest): ListUserPostsResponse {
-        val viewerUserId = requireAuthenticatedUserId()
+        val viewerUserId = request.actor.toUserId()
         val authorUserId = parseGrpcUuid(request.userId, "user_id").let(::UserId)
         val page =
             PageRequestInput(
@@ -143,7 +143,7 @@ class PostServiceRpc(
     }
 
     override suspend fun listMyPosts(request: ListMyPostsRequest): ListMyPostsResponse {
-        val viewerUserId = requireAuthenticatedUserId()
+        val viewerUserId = request.actor.toUserId()
         val page =
             PageRequestInput(
                 pageSize = request.page.pageSize,
@@ -172,7 +172,7 @@ class PostServiceRpc(
     }
 
     override suspend fun deletePost(request: DeletePostRequest): DeletePostResponse {
-        val authorUserId = requireAuthenticatedUserId()
+        val authorUserId = request.actor.toUserId()
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         mapRpcExceptions {
@@ -183,7 +183,7 @@ class PostServiceRpc(
     }
 
     override suspend fun updatePostCaption(request: UpdatePostCaptionRequest): UpdatePostCaptionResponse {
-        val authorUserId = requireAuthenticatedUserId()
+        val authorUserId = request.actor.toUserId()
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         val post =
@@ -202,7 +202,7 @@ class PostServiceRpc(
     }
 
     override suspend fun updatePostVisibility(request: UpdatePostVisibilityRequest): UpdatePostVisibilityResponse {
-        val authorUserId = requireAuthenticatedUserId()
+        val authorUserId = request.actor.toUserId()
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         val post =
@@ -221,7 +221,7 @@ class PostServiceRpc(
     }
 
     override suspend fun checkPostVisibility(request: CheckPostVisibilityRequest): CheckPostVisibilityResponse {
-        val viewerUserId = requireAuthenticatedUserId()
+        val viewerUserId = request.actor.toUserId()
         val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
 
         val result =
@@ -254,26 +254,7 @@ class PostServiceRpc(
             .build()
     }
 
-    private fun requireAuthenticatedUserId(): UserId {
-        val principal =
-            GrpcAuthContext.currentPrincipal()
-                ?: throw Status.UNAUTHENTICATED.withDescription("Authentication required").asRuntimeException()
-        return parseGrpcUuid(principal.subject, "user_id").let(::UserId)
-    }
-
-    private fun resolveViewerUserId(requestViewerUserId: String): UserId {
-        val trimmed = requestViewerUserId.trim()
-        if (trimmed.isEmpty()) {
-            return requireAuthenticatedUserId()
-        }
-
-        val viewerUserId = parseGrpcUuid(trimmed, "viewer_user_id").let(::UserId)
-        val authenticatedUserId = requireAuthenticatedUserId()
-        if (viewerUserId != authenticatedUserId) {
-            throw PermissionDeniedException("viewer_user_id must match authenticated user").toStatus().asRuntimeException()
-        }
-        return viewerUserId
-    }
+    private fun ActorContext.toUserId(): UserId = UserId(requireUserUuid())
 }
 
 private suspend inline fun <T> mapRpcExceptions(crossinline block: suspend () -> T): T =

@@ -29,7 +29,7 @@ class GuessService(
     suspend fun submitGuess(command: SubmitGuessCommand): GuessResult {
         validateGeoPoint(command.guessedPoint, fieldPrefix = "guessed_point")
 
-        if (!postAccessPort.canViewPost(command.postId)) {
+        if (!postAccessPort.canViewPost(command.postId, command.userId)) {
             throw PermissionDeniedException("post is not visible to viewer")
         }
 
@@ -280,7 +280,7 @@ class GuessService(
             return true
         }
 
-        return postAccessPort.canViewPost(postId)
+        return postAccessPort.canViewPost(postId, viewerUserId)
     }
 
     private fun validateGeoPoint(

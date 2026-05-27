@@ -1,14 +1,9 @@
 package jp.xhw.mikke.services.post
 
-import io.grpc.ManagedChannel
 import io.grpc.health.v1.HealthGrpc
 import jp.xhw.mikke.friendship.v1.FriendshipServiceGrpcKt
 import jp.xhw.mikke.identity.v1.IdentityServiceGrpcKt
 import jp.xhw.mikke.media.v1.MediaServiceGrpcKt
-import jp.xhw.mikke.platform.auth.grpc.GrpcAuthServerInterceptor
-import jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
-import jp.xhw.mikke.platform.auth.grpc.bearerToken
-import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
 import jp.xhw.mikke.platform.database.connectMariaDbFromEnv
 import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
 import jp.xhw.mikke.platform.grpc.GrpcServerExceptionHandling
@@ -38,7 +33,6 @@ fun main() {
     val database = connectMariaDbFromEnv(defaultDatabase = "post_service")
     val redis = connectRedisFromEnv()
     val transactionRunner = ExposedTransactionRunner(database)
-    val tokenService = JwtTokenService(secret = System.getenv("IDENTITY_JWT_SECRET") ?: "dev-identity-secret")
 
     val identityChannel =
         grpcClientChannelFromEnvironment(
@@ -76,7 +70,9 @@ fun main() {
             outboxRepository = ExposedPostOutboxRepository(),
             mediaChecker =
                 GrpcPostMediaChecker(
-                    MediaServiceGrpcKt.MediaServiceCoroutineStub(mediaChannel),
+                    MediaServiceGrpcKt
+                        .MediaServiceCoroutineStub(mediaChannel)
+                        .withInterceptors(InternalCallerClientInterceptor(serviceName = "post-service")),
                 ),
             visibilityAuthorizer = GrpcPostVisibilityAuthorizer(friendshipStub),
             userStatusChecker =
@@ -127,29 +123,43 @@ fun main() {
             ),
     ) {
         installGrpcHealth(serviceName = "post-service")
-        val methodAuthPolicies = postGrpcAuthPolicies()
-        intercept(InternalRpcServerInterceptor(methodAuthPolicies = methodAuthPolicies))
-        intercept(
-            GrpcAuthServerInterceptor(
-                authenticator = { headers ->
-                    headers.bearerToken()?.let(tokenService::authenticateAccessToken)
-                },
-                optional = false,
-                methodAuthPolicies = methodAuthPolicies,
-            ),
-        )
+        intercept(InternalRpcServerInterceptor(methodAuthPolicies = postGrpcAuthPolicies()))
         addService(postService)
     }.startAndAwait()
 }
 
-fun postGrpcAuthPolicies(): Map<String, GrpcEndpointAuthPolicy> =
-    mapOf(
-        HealthGrpc.getCheckMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
-        HealthGrpc.getWatchMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
-        PostServiceGrpc.getGetPostLocationForGuessMethod().fullMethodName to GrpcEndpointAuthPolicy.InternalRequired,
-    )
+fun postGrpcAuthPolicies(): Map<String, jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy> {
+    val internalRequired =
+        listOf(
+            PostServiceGrpc.getCreatePostMethod(),
+            PostServiceGrpc.getGetPostMethod(),
+            PostServiceGrpc.getBatchGetPostsMethod(),
+            PostServiceGrpc.getListVisiblePostsMethod(),
+            PostServiceGrpc.getListUserPostsMethod(),
+            PostServiceGrpc.getListMyPostsMethod(),
+            PostServiceGrpc.getDeletePostMethod(),
+            PostServiceGrpc.getUpdatePostCaptionMethod(),
+            PostServiceGrpc.getUpdatePostVisibilityMethod(),
+        ).associate { method ->
+            method.fullMethodName to
+                jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
+                    .internalRequired("api")
+        }
 
-private fun ManagedChannel.shutdownGracefully() {
+    return internalRequired +
+        mapOf(
+            PostServiceGrpc.getCheckPostVisibilityMethod().fullMethodName to
+                jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
+                    .internalRequired("api", "guess-service"),
+            PostServiceGrpc.getGetPostLocationForGuessMethod().fullMethodName to
+                jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
+                    .internalRequired("guess-service"),
+            HealthGrpc.getCheckMethod().fullMethodName to jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy.UserOptional,
+            HealthGrpc.getWatchMethod().fullMethodName to jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy.UserOptional,
+        )
+}
+
+private fun io.grpc.ManagedChannel.shutdownGracefully() {
     shutdown()
     if (!awaitTermination(5, TimeUnit.SECONDS)) {
         shutdownNow()

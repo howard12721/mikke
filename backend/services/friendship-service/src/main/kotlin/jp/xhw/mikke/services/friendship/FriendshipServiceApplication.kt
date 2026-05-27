@@ -2,10 +2,7 @@ package jp.xhw.mikke.services.friendship
 
 import io.grpc.health.v1.HealthGrpc
 import jp.xhw.mikke.friendship.v1.FriendshipServiceGrpc
-import jp.xhw.mikke.platform.auth.grpc.GrpcAuthServerInterceptor
 import jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
-import jp.xhw.mikke.platform.auth.grpc.bearerToken
-import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
 import jp.xhw.mikke.platform.database.connectMariaDbFromEnv
 import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
 import jp.xhw.mikke.platform.grpc.*
@@ -31,7 +28,6 @@ fun main() {
     val blockRepository = ExposedBlockRepository()
     val friendshipOutbox = ExposedFriendshipOutbox()
     val transactionRunner = ExposedTransactionRunner(database)
-    val tokenService = JwtTokenService(secret = System.getenv("IDENTITY_JWT_SECRET") ?: "dev-identity-secret")
     val friendshipApplicationService =
         FriendshipService(
             friendRequestRepository = friendRequestRepository,
@@ -88,25 +84,35 @@ fun main() {
             ),
     ) {
         installGrpcHealth(serviceName = "friendship-service")
-        val methodAuthPolicies = friendshipGrpcAuthPolicies()
-        intercept(InternalRpcServerInterceptor(methodAuthPolicies = methodAuthPolicies))
-        intercept(
-            GrpcAuthServerInterceptor(
-                authenticator = { headers ->
-                    headers.bearerToken()?.let(tokenService::authenticateAccessToken)
-                },
-                optional = false,
-                methodAuthPolicies = methodAuthPolicies,
-            ),
-        )
+        intercept(InternalRpcServerInterceptor(methodAuthPolicies = friendshipGrpcAuthPolicies()))
         addService(friendshipService)
     }.startAndAwait()
 }
 
-fun friendshipGrpcAuthPolicies(): Map<String, GrpcEndpointAuthPolicy> =
-    mapOf(
-        HealthGrpc.getCheckMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
-        HealthGrpc.getWatchMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
-        FriendshipServiceGrpc.getCheckCanViewUserPostsForViewerMethod().fullMethodName to
-            GrpcEndpointAuthPolicy.InternalRequired,
-    )
+fun friendshipGrpcAuthPolicies(): Map<String, GrpcEndpointAuthPolicy> {
+    val internalRequired =
+        listOf(
+            FriendshipServiceGrpc.getSendFriendRequestMethod(),
+            FriendshipServiceGrpc.getAcceptFriendRequestMethod(),
+            FriendshipServiceGrpc.getRejectFriendRequestMethod(),
+            FriendshipServiceGrpc.getCancelFriendRequestMethod(),
+            FriendshipServiceGrpc.getRemoveFriendMethod(),
+            FriendshipServiceGrpc.getBlockUserMethod(),
+            FriendshipServiceGrpc.getUnblockUserMethod(),
+            FriendshipServiceGrpc.getGetFriendshipMethod(),
+            FriendshipServiceGrpc.getListFriendsMethod(),
+            FriendshipServiceGrpc.getListIncomingFriendRequestsMethod(),
+            FriendshipServiceGrpc.getListOutgoingFriendRequestsMethod(),
+            FriendshipServiceGrpc.getBatchGetFriendshipSummariesMethod(),
+        ).associate { method -> method.fullMethodName to GrpcEndpointAuthPolicy.internalRequired("api") }
+
+    return internalRequired +
+        mapOf(
+            FriendshipServiceGrpc.getCheckCanViewUserPostsMethod().fullMethodName to
+                GrpcEndpointAuthPolicy.internalRequired("api", "post-service", "media-service"),
+            FriendshipServiceGrpc.getCheckCanViewUserPostsForViewerMethod().fullMethodName to
+                GrpcEndpointAuthPolicy.internalRequired("api", "post-service", "media-service"),
+            HealthGrpc.getCheckMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
+            HealthGrpc.getWatchMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
+        )
+}

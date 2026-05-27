@@ -573,7 +573,10 @@ private class FakePostAccessPort(
     private val canView: Boolean = true,
     private val canViewProvider: (() -> Boolean)? = null,
 ) : PostAccessPort {
-    override suspend fun canViewPost(postId: PostId): Boolean = canViewProvider?.invoke() ?: canView
+    override suspend fun canViewPost(
+        postId: PostId,
+        viewerUserId: UserId,
+    ): Boolean = canViewProvider?.invoke() ?: canView
 
     override suspend fun getPostLocationForGuess(postId: PostId): PostLocationForGuess {
         if (!(canViewProvider?.invoke() ?: canView)) {

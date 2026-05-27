@@ -2,6 +2,7 @@ package jp.xhw.mikke.services.post.infrastructure
 
 import io.grpc.Status
 import io.grpc.StatusException
+import jp.xhw.mikke.common.v1.ActorContext
 import jp.xhw.mikke.media.v1.GetMediaRequest
 import jp.xhw.mikke.media.v1.MediaServiceGrpcKt
 import jp.xhw.mikke.media.v1.MediaStatus
@@ -26,7 +27,12 @@ class GrpcPostMediaChecker(
                         GetMediaRequest
                             .newBuilder()
                             .setMediaId(mediaId.value.toString())
-                            .build(),
+                            .setActor(
+                                ActorContext
+                                    .newBuilder()
+                                    .setUserId(ownerUserId.value.toString())
+                                    .build(),
+                            ).build(),
                     ).media
             } catch (e: StatusException) {
                 when (e.status.code) {

@@ -5,10 +5,8 @@ import io.grpc.health.v1.HealthGrpc
 import jp.xhw.mikke.events.post.PostCreatedPayload
 import jp.xhw.mikke.events.post.PostDeletedPayload
 import jp.xhw.mikke.events.post.PostEventTypes
-import jp.xhw.mikke.platform.auth.grpc.GrpcAuthServerInterceptor
+import jp.xhw.mikke.guess.v1.GuessServiceGrpc
 import jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy
-import jp.xhw.mikke.platform.auth.grpc.bearerToken
-import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
 import jp.xhw.mikke.platform.database.connectMariaDbFromEnv
 import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
 import jp.xhw.mikke.platform.events.ProcessedEventStore
@@ -16,6 +14,7 @@ import jp.xhw.mikke.platform.events.subscription.EventHandlerRegistration
 import jp.xhw.mikke.platform.events.subscription.RedisDeadLetterSink
 import jp.xhw.mikke.platform.events.subscription.RedisEventSubscription
 import jp.xhw.mikke.platform.grpc.GrpcServerExceptionHandling
+import jp.xhw.mikke.platform.grpc.InternalCallerClientInterceptor
 import jp.xhw.mikke.platform.grpc.InternalRpcServerInterceptor
 import jp.xhw.mikke.platform.grpc.grpcClientChannelFromEnvironment
 import jp.xhw.mikke.platform.grpc.grpcServer
@@ -42,7 +41,6 @@ fun main() {
     val database = connectMariaDbFromEnv(defaultDatabase = "guess_service")
     val redis = connectRedisFromEnv()
     val transactionRunner = ExposedTransactionRunner(database)
-    val tokenService = JwtTokenService(secret = System.getenv("IDENTITY_JWT_SECRET") ?: "dev-identity-secret")
     val instanceId = guessServiceInstanceId()
 
     val postChannel =
@@ -56,7 +54,7 @@ fun main() {
     val postStub =
         PostServiceGrpcKt
             .PostServiceCoroutineStub(postChannel)
-            .withGuessServiceClientInterceptors()
+            .withInterceptors(InternalCallerClientInterceptor(serviceName = "guess-service"))
 
     val guessApplicationService =
         GuessService(
@@ -178,23 +176,31 @@ fun main() {
             ),
     ) {
         installGrpcHealth(serviceName = "guess-service")
-        intercept(InternalRpcServerInterceptor())
-        intercept(OutboundBearerTokenCaptureInterceptor())
-        intercept(
-            GrpcAuthServerInterceptor(
-                authenticator = { headers ->
-                    headers.bearerToken()?.let(tokenService::authenticateAccessToken)
-                },
-                optional = false,
-                methodAuthPolicies =
-                    mapOf(
-                        HealthGrpc.getCheckMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
-                        HealthGrpc.getWatchMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
-                    ),
-            ),
-        )
+        intercept(InternalRpcServerInterceptor(methodAuthPolicies = guessGrpcAuthPolicies()))
         addService(guessServiceRpc)
     }.startAndAwait()
+}
+
+fun guessGrpcAuthPolicies(): Map<String, GrpcEndpointAuthPolicy> {
+    val internalRequired =
+        listOf(
+            GuessServiceGrpc.getSubmitGuessMethod(),
+            GuessServiceGrpc.getGetGuessMethod(),
+            GuessServiceGrpc.getGetMyGuessForPostMethod(),
+            GuessServiceGrpc.getBatchGetMyGuessesForPostsMethod(),
+            GuessServiceGrpc.getListGuessesForPostMethod(),
+            GuessServiceGrpc.getListMyGuessesMethod(),
+            GuessServiceGrpc.getGetPostGuessStatsMethod(),
+            GuessServiceGrpc.getGetUserScoreSummaryMethod(),
+            GuessServiceGrpc.getListPostRankingsMethod(),
+            GuessServiceGrpc.getListGuessRankingsMethod(),
+        ).associate { method -> method.fullMethodName to GrpcEndpointAuthPolicy.internalRequired("api") }
+
+    return internalRequired +
+        mapOf(
+            HealthGrpc.getCheckMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
+            HealthGrpc.getWatchMethod().fullMethodName to GrpcEndpointAuthPolicy.UserOptional,
+        )
 }
 
 private fun guessServiceInstanceId(): String =
