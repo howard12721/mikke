@@ -1,6 +1,7 @@
 package jp.xhw.mikke.api.media.application
 
 import jp.xhw.mikke.api.common.application.requireText
+import jp.xhw.mikke.api.common.application.requireUuidText
 import jp.xhw.mikke.api.graphql.ApiRequestContext
 
 class MediaApiService(
@@ -26,7 +27,7 @@ class MediaApiService(
     ): UploadCheck =
         mediaGateway.checkUpload(
             context = context,
-            mediaId = mediaId.requireText("mediaId"),
+            mediaId = mediaId.requireUuidText("mediaId"),
             objectKey = objectKey.requireText("objectKey"),
         )
 }

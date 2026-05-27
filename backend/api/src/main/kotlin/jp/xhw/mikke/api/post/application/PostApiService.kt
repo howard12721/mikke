@@ -24,7 +24,7 @@ class PostApiService(
     ): Post =
         postGateway.createPost(
             context = context,
-            mediaId = mediaId.requireText("mediaId"),
+            mediaId = mediaId.requireUuidText("mediaId"),
             caption = caption?.trim()?.takeIf { it.isNotEmpty() },
             visibility = visibility,
             location = location,
