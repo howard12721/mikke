@@ -13,6 +13,7 @@ import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.javatime.timestamp
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Instant
@@ -32,6 +33,7 @@ class ExposedIdentityUserRepository : IdentityUserRepository {
                 row[passwordHashIterations] = user.passwordHash.iterations
                 row[passwordHash] = user.passwordHash.hash
                 row[passwordSalt] = user.passwordHash.salt
+                row[sessionVersion] = 0
                 row[createdAt] = user.createdAt.toJavaInstant()
                 row[updatedAt] = user.updatedAt.toJavaInstant()
                 row[deactivatedAt] = user.deactivatedAt?.toJavaInstant()
@@ -167,6 +169,28 @@ class ExposedIdentityUserRepository : IdentityUserRepository {
             row[IdentityUsersTable.passwordSalt] = passwordHash.salt
             row[IdentityUsersTable.updatedAt] = updatedAt.toJavaInstant()
         } > 0
+
+    override fun getSessionVersion(userId: UserId): Int =
+        IdentityUsersTable
+            .select(IdentityUsersTable.sessionVersion)
+            .where { IdentityUsersTable.id eq userId.value }
+            .limit(1)
+            .singleOrNull()
+            ?.get(IdentityUsersTable.sessionVersion)
+            ?: throw jp.xhw.mikke.services.identity.application.exception
+                .UserNotFoundException()
+
+    override fun incrementSessionVersion(userId: UserId): Int {
+        val updated =
+            IdentityUsersTable.update({ IdentityUsersTable.id eq userId.value }) { row ->
+                row[sessionVersion] = sessionVersion + 1
+            }
+        if (updated == 0) {
+            throw jp.xhw.mikke.services.identity.application.exception
+                .UserNotFoundException()
+        }
+        return getSessionVersion(userId)
+    }
 }
 
 private object IdentityUsersTable : Table("identity_users") {
@@ -181,6 +205,7 @@ private object IdentityUsersTable : Table("identity_users") {
     val passwordHashIterations = integer("password_hash_iterations")
     val passwordHash = varchar("password_hash", length = 512)
     val passwordSalt = varchar("password_salt", length = 512)
+    val sessionVersion = integer("session_version")
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
     val deactivatedAt = timestamp("deactivated_at").nullable()

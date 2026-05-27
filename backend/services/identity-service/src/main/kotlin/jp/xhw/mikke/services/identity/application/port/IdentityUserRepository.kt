@@ -32,4 +32,8 @@ interface IdentityUserRepository {
         passwordHash: PasswordHash,
         updatedAt: Instant,
     ): Boolean
+
+    fun getSessionVersion(userId: UserId): Int
+
+    fun incrementSessionVersion(userId: UserId): Int
 }

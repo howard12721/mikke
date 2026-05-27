@@ -5,7 +5,7 @@ import jp.xhw.mikke.identity.v1.AuthSession
 import jp.xhw.mikke.identity.v1.PublicUser
 import jp.xhw.mikke.identity.v1.User
 import jp.xhw.mikke.identity.v1.UserStatus
-import jp.xhw.mikke.platform.auth.IssuedAuthSession
+import jp.xhw.mikke.platform.auth.IssuedClientSession
 import jp.xhw.mikke.platform.pagination.PageSlice
 import jp.xhw.mikke.platform.time.toProtoTimestamp
 import jp.xhw.mikke.platform.uuid.formatGrpcUuid
@@ -37,13 +37,12 @@ fun IdentityUser.toPublicProto(): PublicUser =
             this@toPublicProto.avatarMediaId?.let { mediaId -> setAvatarMediaId(formatGrpcUuid(mediaId.value)) }
         }.build()
 
-fun IssuedAuthSession.toProto(): AuthSession =
+fun IssuedClientSession.toProto(): AuthSession =
     AuthSession
         .newBuilder()
-        .setAccessToken(accessToken.value)
-        .setRefreshToken(refreshToken.value)
-        .setAccessTokenExpiresAt(accessToken.expiresAt.toProtoTimestamp())
-        .setRefreshTokenExpiresAt(refreshToken.expiresAt.toProtoTimestamp())
+        .setSessionId(sessionId)
+        .setIdleExpiresAt(idleExpiresAt.toProtoTimestamp())
+        .setAbsoluteExpiresAt(absoluteExpiresAt.toProtoTimestamp())
         .build()
 
 fun PageSlice<IdentityUser>.toPageInfo(): PageInfo =

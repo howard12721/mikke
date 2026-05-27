@@ -1,40 +1,35 @@
 package jp.xhw.mikke.services.identity
 
-import jp.xhw.mikke.platform.auth.grpc.GrpcAuthServerInterceptor
-import jp.xhw.mikke.platform.auth.grpc.bearerToken
-import jp.xhw.mikke.platform.auth.jwt.JwtTokenService
 import jp.xhw.mikke.platform.database.connectMariaDbFromEnv
 import jp.xhw.mikke.platform.database.exposed.ExposedTransactionRunner
 import jp.xhw.mikke.platform.grpc.GrpcServerExceptionHandling
+import jp.xhw.mikke.platform.grpc.InternalRpcServerInterceptor
 import jp.xhw.mikke.platform.grpc.grpcServer
 import jp.xhw.mikke.platform.grpc.installGrpcHealth
 import jp.xhw.mikke.platform.grpc.startAndAwait
+import jp.xhw.mikke.platform.redis.connectRedisFromEnv
 import jp.xhw.mikke.services.identity.application.exception.IdentityApplicationException
 import jp.xhw.mikke.services.identity.application.security.PasswordHasher
-import jp.xhw.mikke.services.identity.application.security.RefreshSessionTokenService
 import jp.xhw.mikke.services.identity.application.service.IdentityService
 import jp.xhw.mikke.services.identity.infrastructure.ExposedIdentityUserRepository
-import jp.xhw.mikke.services.identity.infrastructure.ExposedRefreshSessionRepository
+import jp.xhw.mikke.services.identity.infrastructure.RedisClientSessionStore
 import jp.xhw.mikke.services.identity.infrastructure.outbox.ExposedIdentityUserOutbox
 
 fun main() {
     val passwordHasher = PasswordHasher()
     val database = connectMariaDbFromEnv(defaultDatabase = "identity_service")
     val userRepository = ExposedIdentityUserRepository()
-    val refreshSessionRepository = ExposedRefreshSessionRepository()
     val userOutbox = ExposedIdentityUserOutbox()
     val transactionRunner = ExposedTransactionRunner(database)
-    val tokenService = JwtTokenService(secret = System.getenv("IDENTITY_JWT_SECRET") ?: "dev-identity-secret")
-    val refreshSessionTokenService = RefreshSessionTokenService()
+    val redis = connectRedisFromEnv()
+    val clientSessionStore = RedisClientSessionStore(commands = redis.connection.sync())
     val identityApplicationService =
         IdentityService(
             userRepository = userRepository,
-            refreshSessionRepository = refreshSessionRepository,
+            clientSessionStore = clientSessionStore,
             userOutbox = userOutbox,
             transactionRunner = transactionRunner,
             passwordHasher = passwordHasher,
-            tokenService = tokenService,
-            refreshSessionTokenService = refreshSessionTokenService,
         )
     val identityService = IdentityServiceRpc(identityService = identityApplicationService)
     startIdentityOutboxRelay(transactionRunner)
@@ -53,14 +48,7 @@ fun main() {
             ),
     ) {
         installGrpcHealth(serviceName = "identity-service")
-        intercept(
-            GrpcAuthServerInterceptor(
-                authenticator = { headers ->
-                    headers.bearerToken()?.let(tokenService::authenticateAccessToken)
-                },
-                optional = true,
-            ),
-        )
+        intercept(InternalRpcServerInterceptor(methodAuthPolicies = identityGrpcAuthPolicies()))
         addService(identityService)
     }.startAndAwait()
 }

@@ -1,6 +1,6 @@
 package jp.xhw.mikke.services.identity.application.command
 
-import jp.xhw.mikke.platform.auth.IssuedAuthSession
+import jp.xhw.mikke.platform.auth.IssuedClientSession
 import jp.xhw.mikke.services.identity.model.AvatarMediaId
 import jp.xhw.mikke.services.identity.model.IdentityUser
 
@@ -24,7 +24,7 @@ data class UpdateProfileCommand(
 
 data class AuthenticatedIdentityUser(
     val user: IdentityUser,
-    val session: IssuedAuthSession,
+    val session: IssuedClientSession,
 )
 
 data class ChangePasswordCommand(
