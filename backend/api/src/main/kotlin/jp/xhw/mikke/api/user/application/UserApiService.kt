@@ -4,6 +4,7 @@ import jp.xhw.mikke.api.common.application.PageInput
 import jp.xhw.mikke.api.common.application.PageResult
 import jp.xhw.mikke.api.common.application.normalized
 import jp.xhw.mikke.api.common.application.requireText
+import jp.xhw.mikke.api.common.application.requireUuidText
 import jp.xhw.mikke.api.graphql.ApiRequestContext
 
 class UserApiService(
@@ -50,7 +51,7 @@ class UserApiService(
             context = context,
             username = username?.trim()?.takeIf { it.isNotEmpty() },
             displayName = displayName?.trim()?.takeIf { it.isNotEmpty() },
-            avatarMediaId = avatarMediaId?.trim()?.takeIf { it.isNotEmpty() },
+            avatarMediaId = avatarMediaId?.trim()?.takeIf { it.isNotEmpty() }?.requireUuidText("avatarMediaId"),
         )
 
     suspend fun changePassword(

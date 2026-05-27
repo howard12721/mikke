@@ -2,6 +2,7 @@ package jp.xhw.mikke.api.common.application
 
 import jp.xhw.mikke.api.http.ApiErrorCode
 import jp.xhw.mikke.api.http.ApiHttpException
+import java.util.UUID
 
 data class PageInput(
     val pageSize: Int?,
@@ -29,6 +30,19 @@ fun String.requireText(fieldName: String): String =
             status = ApiErrorCode.InvalidRequest.status,
             message = "$fieldName is required",
         )
+
+fun String.requireUuidText(fieldName: String): String {
+    val value = requireText(fieldName)
+    try {
+        UUID.fromString(value)
+    } catch (_: IllegalArgumentException) {
+        throw ApiHttpException(
+            status = ApiErrorCode.InvalidRequest.status,
+            message = "$fieldName must be a valid UUID",
+        )
+    }
+    return value
+}
 
 fun PageInput.normalized(): PageInput =
     PageInput(
