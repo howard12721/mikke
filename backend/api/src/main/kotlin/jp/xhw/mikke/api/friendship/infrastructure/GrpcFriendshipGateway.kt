@@ -12,10 +12,11 @@ import jp.xhw.mikke.api.friendship.application.FriendRequest
 import jp.xhw.mikke.api.friendship.application.Friendship
 import jp.xhw.mikke.api.friendship.application.FriendshipSummary
 import jp.xhw.mikke.api.graphql.ApiRequestContext
-import jp.xhw.mikke.api.infrastructure.authHeaderInterceptor
 import jp.xhw.mikke.api.infrastructure.closeChannel
 import jp.xhw.mikke.api.infrastructure.gatewayChannelFromEnvironment
+import jp.xhw.mikke.api.infrastructure.requireActorProto
 import jp.xhw.mikke.api.infrastructure.toIsoString
+import jp.xhw.mikke.api.infrastructure.withInternalAuth
 import jp.xhw.mikke.friendship.v1.*
 import jp.xhw.mikke.friendship.v1.BlockRelation as ProtoBlockRelation
 import jp.xhw.mikke.friendship.v1.FriendRequest as ProtoFriendRequest
@@ -25,17 +26,21 @@ import jp.xhw.mikke.friendship.v1.FriendshipSummary as ProtoFriendshipSummary
 class GrpcFriendshipGateway(
     private val channel: ManagedChannel,
     private val stub: FriendshipServiceGrpcKt.FriendshipServiceCoroutineStub =
-        FriendshipServiceGrpcKt.FriendshipServiceCoroutineStub(channel),
+        FriendshipServiceGrpcKt.FriendshipServiceCoroutineStub(channel).withInternalAuth(),
 ) : FriendshipGateway {
     override suspend fun sendRequest(
         context: ApiRequestContext,
         receiverUserId: String,
     ): FriendRequest =
         call {
-            context
-                .stub()
-                .sendFriendRequest(SendFriendRequestRequest.newBuilder().setReceiverUserId(receiverUserId).build())
-                .friendRequest
+            stub
+                .sendFriendRequest(
+                    SendFriendRequestRequest
+                        .newBuilder()
+                        .setReceiverUserId(receiverUserId)
+                        .setActor(context.requireActorProto())
+                        .build(),
+                ).friendRequest
                 .toFriendRequest()
         }
 
@@ -44,10 +49,13 @@ class GrpcFriendshipGateway(
         friendRequestId: String,
     ): Friendship =
         call {
-            context
-                .stub()
+            stub
                 .acceptFriendRequest(
-                    AcceptFriendRequestRequest.newBuilder().setFriendRequestId(friendRequestId).build(),
+                    AcceptFriendRequestRequest
+                        .newBuilder()
+                        .setFriendRequestId(friendRequestId)
+                        .setActor(context.requireActorProto())
+                        .build(),
                 ).friendship
                 .toFriendship()
         }
@@ -57,10 +65,13 @@ class GrpcFriendshipGateway(
         friendRequestId: String,
     ): FriendRequest =
         call {
-            context
-                .stub()
+            stub
                 .rejectFriendRequest(
-                    RejectFriendRequestRequest.newBuilder().setFriendRequestId(friendRequestId).build(),
+                    RejectFriendRequestRequest
+                        .newBuilder()
+                        .setFriendRequestId(friendRequestId)
+                        .setActor(context.requireActorProto())
+                        .build(),
                 ).friendRequest
                 .toFriendRequest()
         }
@@ -70,10 +81,13 @@ class GrpcFriendshipGateway(
         friendRequestId: String,
     ): FriendRequest =
         call {
-            context
-                .stub()
+            stub
                 .cancelFriendRequest(
-                    CancelFriendRequestRequest.newBuilder().setFriendRequestId(friendRequestId).build(),
+                    CancelFriendRequestRequest
+                        .newBuilder()
+                        .setFriendRequestId(friendRequestId)
+                        .setActor(context.requireActorProto())
+                        .build(),
                 ).friendRequest
                 .toFriendRequest()
         }
@@ -83,7 +97,13 @@ class GrpcFriendshipGateway(
         friendUserId: String,
     ) {
         call {
-            context.stub().removeFriend(RemoveFriendRequest.newBuilder().setFriendUserId(friendUserId).build())
+            stub.removeFriend(
+                RemoveFriendRequest
+                    .newBuilder()
+                    .setFriendUserId(friendUserId)
+                    .setActor(context.requireActorProto())
+                    .build(),
+            )
         }
     }
 
@@ -92,10 +112,14 @@ class GrpcFriendshipGateway(
         blockedUserId: String,
     ): BlockRelation =
         call {
-            context
-                .stub()
-                .blockUser(BlockUserRequest.newBuilder().setBlockedUserId(blockedUserId).build())
-                .blockRelation
+            stub
+                .blockUser(
+                    BlockUserRequest
+                        .newBuilder()
+                        .setBlockedUserId(blockedUserId)
+                        .setActor(context.requireActorProto())
+                        .build(),
+                ).blockRelation
                 .toBlockRelation()
         }
 
@@ -104,7 +128,13 @@ class GrpcFriendshipGateway(
         blockedUserId: String,
     ) {
         call {
-            context.stub().unblockUser(UnblockUserRequest.newBuilder().setBlockedUserId(blockedUserId).build())
+            stub.unblockUser(
+                UnblockUserRequest
+                    .newBuilder()
+                    .setBlockedUserId(blockedUserId)
+                    .setActor(context.requireActorProto())
+                    .build(),
+            )
         }
     }
 
@@ -113,10 +143,14 @@ class GrpcFriendshipGateway(
         targetUserId: String,
     ): FriendshipSummary =
         call {
-            context
-                .stub()
-                .getFriendship(GetFriendshipRequest.newBuilder().setTargetUserId(targetUserId).build())
-                .summary
+            stub
+                .getFriendship(
+                    GetFriendshipRequest
+                        .newBuilder()
+                        .setTargetUserId(targetUserId)
+                        .setActor(context.requireActorProto())
+                        .build(),
+                ).summary
                 .toFriendshipSummary()
         }
 
@@ -127,15 +161,14 @@ class GrpcFriendshipGateway(
     ): PageResult<String> =
         call {
             val response =
-                context
-                    .stub()
-                    .listFriends(
-                        ListFriendsRequest
-                            .newBuilder()
-                            .setTargetUserId(targetUserId)
-                            .setPage(page.toProto())
-                            .build(),
-                    )
+                stub.listFriends(
+                    ListFriendsRequest
+                        .newBuilder()
+                        .setTargetUserId(targetUserId)
+                        .setPage(page.toProto())
+                        .setActor(context.requireActorProto())
+                        .build(),
+                )
             PageResult(response.friendUserIdsList, response.pageInfo.toPageInfo())
         }
 
@@ -145,8 +178,12 @@ class GrpcFriendshipGateway(
     ): PageResult<FriendRequest> =
         call {
             val response =
-                context.stub().listIncomingFriendRequests(
-                    ListIncomingFriendRequestsRequest.newBuilder().setPage(page.toProto()).build(),
+                stub.listIncomingFriendRequests(
+                    ListIncomingFriendRequestsRequest
+                        .newBuilder()
+                        .setPage(page.toProto())
+                        .setActor(context.requireActorProto())
+                        .build(),
                 )
             PageResult(response.friendRequestsList.map { it.toFriendRequest() }, response.pageInfo.toPageInfo())
         }
@@ -157,16 +194,17 @@ class GrpcFriendshipGateway(
     ): PageResult<FriendRequest> =
         call {
             val response =
-                context.stub().listOutgoingFriendRequests(
-                    ListOutgoingFriendRequestsRequest.newBuilder().setPage(page.toProto()).build(),
+                stub.listOutgoingFriendRequests(
+                    ListOutgoingFriendRequestsRequest
+                        .newBuilder()
+                        .setPage(page.toProto())
+                        .setActor(context.requireActorProto())
+                        .build(),
                 )
             PageResult(response.friendRequestsList.map { it.toFriendRequest() }, response.pageInfo.toPageInfo())
         }
 
     override fun close() = closeChannel(channel)
-
-    private fun ApiRequestContext.stub(): FriendshipServiceGrpcKt.FriendshipServiceCoroutineStub =
-        authHeaderInterceptor(this)?.let { stub.withInterceptors(it) } ?: stub
 
     companion object {
         fun fromEnvironment(): GrpcFriendshipGateway =

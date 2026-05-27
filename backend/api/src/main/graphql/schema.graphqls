@@ -38,10 +38,9 @@ type AuthPayload {
 }
 
 type AuthSession {
-  accessToken: String!
-  accessTokenExpiresAt: String!
-  refreshToken: String!
-  refreshTokenExpiresAt: String!
+  absoluteExpiresAt: String!
+  idleExpiresAt: String!
+  sessionId: String!
 }
 
 type BlockRelation {
@@ -180,8 +179,7 @@ type Mutation {
   createPost(input: CreatePostInput!): Post!
   deletePost(postId: String!): DeletePostPayload!
   login(input: LoginInput!): AuthPayload!
-  logout(input: LogoutInput!): LogoutPayload!
-  refresh(input: RefreshInput!): RefreshAuthPayload!
+  logout: LogoutPayload!
   register(input: RegisterInput!): AuthPayload!
   rejectFriendRequest(input: FriendRequestIdInput!): FriendRequest!
   removeFriend(input: UserIdInput!): BooleanPayload!
@@ -245,10 +243,6 @@ type Query {
   timeline(page: PageInput): TimelinePage!
   user(id: String!): User!
   userScoreSummary(userId: String!): UserScoreSummary!
-}
-
-type RefreshAuthPayload {
-  session: AuthSession!
 }
 
 type RequiredHeader {
@@ -347,17 +341,9 @@ input LoginInput {
   password: String!
 }
 
-input LogoutInput {
-  refreshToken: String!
-}
-
 input PageInput {
   pageSize: Int
   pageToken: String
-}
-
-input RefreshInput {
-  refreshToken: String!
 }
 
 input RegisterInput {

@@ -1,7 +1,9 @@
 package jp.xhw.mikke.api.auth.presentation.graphql
 
 import com.expediagroup.graphql.server.operations.Mutation
+import graphql.schema.DataFetchingEnvironment
 import jp.xhw.mikke.api.auth.application.*
+import jp.xhw.mikke.api.graphql.apiRequestContext
 
 class AuthMutation(
     private val authApiService: AuthApiService,
@@ -26,11 +28,8 @@ class AuthMutation(
                 ),
             ).toGraphQl()
 
-    suspend fun refresh(input: RefreshInput): RefreshAuthPayload =
-        authApiService.refresh(RefreshCommand(refreshToken = input.refreshToken)).toGraphQl()
-
-    suspend fun logout(input: LogoutInput): LogoutPayload {
-        authApiService.logout(LogoutCommand(refreshToken = input.refreshToken))
+    suspend fun logout(environment: DataFetchingEnvironment): LogoutPayload {
+        authApiService.logout(environment.apiRequestContext())
         return LogoutPayload(success = true)
     }
 }

@@ -1,8 +1,14 @@
 package jp.xhw.mikke.api.bootstrap
 
 import jp.xhw.mikke.api.auth.application.AuthApiService
+import jp.xhw.mikke.api.auth.application.GatewaySessionAuthenticator
+import jp.xhw.mikke.api.auth.application.GatewaySessionReader
+import jp.xhw.mikke.api.auth.application.GatewaySessionTouchScheduler
 import jp.xhw.mikke.api.auth.application.IdentityAuthGateway
+import jp.xhw.mikke.api.auth.application.IdentitySessionGateway
 import jp.xhw.mikke.api.auth.infrastructure.GrpcIdentityAuthGateway
+import jp.xhw.mikke.api.auth.infrastructure.GrpcIdentitySessionGateway
+import jp.xhw.mikke.api.auth.infrastructure.RedisGatewaySessionReader
 import jp.xhw.mikke.api.common.application.GeoPoint
 import jp.xhw.mikke.api.common.application.PageInput
 import jp.xhw.mikke.api.common.application.PageResult
@@ -24,9 +30,16 @@ import jp.xhw.mikke.api.user.application.PublicUser
 import jp.xhw.mikke.api.user.application.UserApiService
 import jp.xhw.mikke.api.user.application.UserGateway
 import jp.xhw.mikke.api.user.infrastructure.GrpcUserGateway
+import jp.xhw.mikke.platform.redis.connectRedisFromEnv
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 class ApiDependencies(
     val authApiService: AuthApiService,
+    val sessionAuthenticator: GatewaySessionAuthenticator,
+    val touchScheduler: GatewaySessionTouchScheduler,
     val userApiService: UserApiService = UserApiService(UnavailableUserGateway),
     val mediaApiService: MediaApiService = MediaApiService(UnavailableMediaGateway),
     val postApiService: PostApiService =
@@ -38,15 +51,28 @@ class ApiDependencies(
         ),
     val friendshipApiService: FriendshipApiService = FriendshipApiService(UnavailableFriendshipGateway),
     val guessApiService: GuessApiService = GuessApiService(UnavailableGuessGateway),
+    private val touchScope: CoroutineScope? = null,
     private val closeables: List<AutoCloseable> = emptyList(),
 ) : AutoCloseable {
     override fun close() {
+        touchScope?.cancel()
         closeables.forEach(AutoCloseable::close)
     }
 
     companion object {
         fun fromEnvironment(): ApiDependencies {
+            val redis = connectRedisFromEnv()
+            val sessionReader: GatewaySessionReader = RedisGatewaySessionReader(commands = redis.connection.sync())
+            val sessionAuthenticator = GatewaySessionAuthenticator(sessionReader = sessionReader)
             val identityAuthGateway: IdentityAuthGateway = GrpcIdentityAuthGateway.fromEnvironment()
+            val identitySessionGateway: IdentitySessionGateway = GrpcIdentitySessionGateway.fromEnvironment()
+            val touchScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            val touchScheduler =
+                GatewaySessionTouchScheduler(
+                    scope = touchScope,
+                    sessionReader = sessionReader,
+                    identitySessionGateway = identitySessionGateway,
+                )
             val userGateway = GrpcUserGateway.fromEnvironment()
             val mediaGateway = GrpcMediaGateway.fromEnvironment()
             val postGateway = GrpcPostGateway.fromEnvironment()
@@ -56,6 +82,8 @@ class ApiDependencies(
 
             return ApiDependencies(
                 authApiService = AuthApiService(identityAuthGateway = identityAuthGateway),
+                sessionAuthenticator = sessionAuthenticator,
+                touchScheduler = touchScheduler,
                 userApiService = UserApiService(userGateway = userGateway),
                 mediaApiService = MediaApiService(mediaGateway = mediaGateway),
                 postApiService =
@@ -67,14 +95,17 @@ class ApiDependencies(
                     ),
                 friendshipApiService = FriendshipApiService(friendshipGateway = friendshipGateway),
                 guessApiService = guessApiService,
+                touchScope = touchScope,
                 closeables =
                     listOf(
                         identityAuthGateway,
+                        identitySessionGateway,
                         userGateway,
                         mediaGateway,
                         postGateway,
                         friendshipGateway,
                         guessGateway,
+                        AutoCloseable { redis.close() },
                     ),
             )
         }

@@ -6,7 +6,7 @@ import io.ktor.http.*
 import io.ktor.server.testing.*
 import jp.xhw.mikke.api.apiModule
 import jp.xhw.mikke.api.auth.application.*
-import jp.xhw.mikke.api.bootstrap.ApiDependencies
+import jp.xhw.mikke.api.testsupport.testApiDependencies
 import jp.xhw.mikke.platform.health.HealthResponse
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -21,7 +21,7 @@ class ApiHealthRoutesTest {
             application {
                 apiModule(
                     dependencies =
-                        ApiDependencies(
+                        testApiDependencies(
                             authApiService =
                                 AuthApiService(
                                     identityAuthGateway =
@@ -29,8 +29,6 @@ class ApiHealthRoutesTest {
                                             override suspend fun login(command: LoginCommand) = error("not used")
 
                                             override suspend fun register(command: RegisterCommand) = error("not used")
-
-                                            override suspend fun refresh(command: RefreshCommand): RefreshResult = error("not used")
 
                                             override suspend fun logout(command: LogoutCommand) = error("not used")
                                         },

@@ -6,18 +6,25 @@ import io.ktor.http.*
 import io.ktor.server.testing.*
 import jp.xhw.mikke.api.apiModule
 import jp.xhw.mikke.api.auth.application.*
-import jp.xhw.mikke.api.bootstrap.ApiDependencies
-import jp.xhw.mikke.api.http.ApiErrorCode
-import jp.xhw.mikke.api.http.ApiHttpException
+import jp.xhw.mikke.api.auth.infrastructure.RecordingGatewaySessionReader
+import jp.xhw.mikke.api.testsupport.testApiDependencies
+import jp.xhw.mikke.platform.auth.session.SessionId
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import java.util.Base64
 
 class AuthGraphQlTest {
     private val json = Json { ignoreUnknownKeys = true }
+    private val sampleSessionId =
+        Base64
+            .getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(ByteArray(SessionId.BYTE_LENGTH) { 7 })
+    private val sampleSessionHash = SessionId.hash(sampleSessionId)
 
     @Test
     fun `login returns session from identity client`() =
@@ -35,8 +42,8 @@ class AuthGraphQlTest {
                     mutation {
                       login(input: { loginId: " alice@example.com ", password: "secret" }) {
                         session {
-                          accessToken
-                          refreshToken
+                          sessionId
+                          idleExpiresAt
                         }
                       }
                     }
@@ -54,8 +61,7 @@ class AuthGraphQlTest {
 
             val login = response.graphQlData("login")
             val session = login.jsonObject.getValue("session").jsonObject
-            assertEquals("access-token", session.getValue("accessToken").jsonPrimitive.content)
-            assertEquals("refresh-token", session.getValue("refreshToken").jsonPrimitive.content)
+            assertEquals(sampleSessionId, session.getValue("sessionId").jsonPrimitive.content)
         }
 
     @Test
@@ -81,7 +87,7 @@ class AuthGraphQlTest {
                         }
                       ) {
                         session {
-                          accessToken
+                          sessionId
                         }
                       }
                     }
@@ -101,64 +107,33 @@ class AuthGraphQlTest {
 
             val register = response.graphQlData("register")
             val session = register.jsonObject.getValue("session").jsonObject
-            assertEquals("access-token", session.getValue("accessToken").jsonPrimitive.content)
+            assertEquals(sampleSessionId, session.getValue("sessionId").jsonPrimitive.content)
         }
 
     @Test
-    fun `refresh returns rotated session from identity client`() =
-        testApplicationWithAuthGateway(
-            RecordingIdentityAuthGateway(
-                onRefresh = { command ->
-                    capturedRefreshCommand = command
-                    sampleRefreshResult()
-                },
-            ),
-        ) {
-            val response =
-                graphQl(
-                    """
-                    mutation {
-                      refresh(input: { refreshToken: " refresh-token " }) {
-                        session {
-                          accessToken
-                          refreshToken
-                        }
-                      }
-                    }
-                    """.trimIndent(),
-                )
-
-            assertEquals(HttpStatusCode.OK, response.status)
-            assertEquals(RefreshCommand(refreshToken = "refresh-token"), capturedRefreshCommand)
-
-            val refresh = response.graphQlData("refresh")
-            val session = refresh.jsonObject.getValue("session").jsonObject
-            assertEquals("access-token", session.getValue("accessToken").jsonPrimitive.content)
-            assertEquals("refresh-token", session.getValue("refreshToken").jsonPrimitive.content)
-        }
-
-    @Test
-    fun `logout returns success when logout succeeds`() =
+    fun `logout returns success when session authorization is valid`() =
         testApplicationWithAuthGateway(
             RecordingIdentityAuthGateway(
                 onLogout = { command ->
                     capturedLogoutCommand = command
                 },
             ),
+            sessionReader = seededSessionReader(),
         ) {
             val response =
                 graphQl(
                     """
                     mutation {
-                      logout(input: { refreshToken: " refresh-token " }) {
+                      logout {
                         success
                       }
                     }
                     """.trimIndent(),
+                    authorizationHeader = "Session $sampleSessionId",
                 )
 
             assertEquals(HttpStatusCode.OK, response.status)
-            assertEquals(LogoutCommand(refreshToken = "refresh-token"), capturedLogoutCommand)
+            assertEquals(LogoutCommand(sessionHash = sampleSessionHash), capturedLogoutCommand)
 
             val logout = response.graphQlData("logout")
             assertEquals(
@@ -178,7 +153,7 @@ class AuthGraphQlTest {
                     mutation {
                       login(input: { loginId: " ", password: "secret" }) {
                         session {
-                          accessToken
+                          sessionId
                         }
                       }
                     }
@@ -195,25 +170,14 @@ class AuthGraphQlTest {
         }
 
     @Test
-    fun `upstream error returns graphql error extensions`() =
-        testApplicationWithAuthGateway(
-            RecordingIdentityAuthGateway(
-                onRefresh = {
-                    throw ApiHttpException(
-                        status = ApiErrorCode.UpstreamUnavailable.status,
-                        message = "Backend service is unavailable",
-                    )
-                },
-            ),
-        ) {
+    fun `logout without authorization returns unauthenticated error`() =
+        testApplicationWithAuthGateway(RecordingIdentityAuthGateway()) {
             val response =
                 graphQl(
                     """
                     mutation {
-                      refresh(input: { refreshToken: "refresh-token" }) {
-                        session {
-                          accessToken
-                        }
+                      logout {
+                        success
                       }
                     }
                     """.trimIndent(),
@@ -222,10 +186,9 @@ class AuthGraphQlTest {
             assertEquals(HttpStatusCode.OK, response.status)
 
             val error = response.graphQlFirstError()
-            assertEquals("Backend service is unavailable", error.getValue("message").jsonPrimitive.content)
+            assertEquals("Authentication required", error.getValue("message").jsonPrimitive.content)
             val extensions = error.getValue("extensions").jsonObject
-            assertEquals("UPSTREAM_UNAVAILABLE", extensions.getValue("code").jsonPrimitive.content)
-            assertEquals("503", extensions.getValue("httpStatus").jsonPrimitive.content)
+            assertEquals("UNAUTHENTICATED", extensions.getValue("code").jsonPrimitive.content)
         }
 
     @Test
@@ -236,16 +199,18 @@ class AuthGraphQlTest {
                     throw IllegalStateException("database password leaked")
                 },
             ),
+            sessionReader = seededSessionReader(),
         ) {
             val response =
                 graphQl(
                     """
                     mutation {
-                      logout(input: { refreshToken: "refresh-token" }) {
+                      logout {
                         success
                       }
                     }
                     """.trimIndent(),
+                    authorizationHeader = "Session $sampleSessionId",
                 )
 
             assertEquals(HttpStatusCode.OK, response.status)
@@ -259,11 +224,11 @@ class AuthGraphQlTest {
 
     private var capturedLoginCommand: LoginCommand? = null
     private var capturedRegisterCommand: RegisterCommand? = null
-    private var capturedRefreshCommand: RefreshCommand? = null
     private var capturedLogoutCommand: LogoutCommand? = null
 
     private fun testApplicationWithAuthGateway(
         identityAuthGateway: IdentityAuthGateway,
+        sessionReader: RecordingGatewaySessionReader = RecordingGatewaySessionReader(),
         block: suspend ApplicationTestBuilder.() -> Unit,
     ) = testApplication {
         resetCaptures()
@@ -271,8 +236,9 @@ class AuthGraphQlTest {
         application {
             apiModule(
                 dependencies =
-                    ApiDependencies(
+                    testApiDependencies(
                         authApiService = AuthApiService(identityAuthGateway = identityAuthGateway),
+                        sessionReader = sessionReader,
                     ),
             )
         }
@@ -280,16 +246,32 @@ class AuthGraphQlTest {
         block()
     }
 
+    private fun seededSessionReader(): RecordingGatewaySessionReader {
+        val reader = RecordingGatewaySessionReader()
+        reader.putSession(
+            sessionHash = sampleSessionHash,
+            userId = "550e8400-e29b-41d4-a716-446655440000",
+            version = 0,
+            issuedAt =
+                kotlin.time.Clock.System
+                    .now(),
+        )
+        return reader
+    }
+
     private fun resetCaptures() {
         capturedLoginCommand = null
         capturedRegisterCommand = null
-        capturedRefreshCommand = null
         capturedLogoutCommand = null
     }
 
-    private suspend fun ApplicationTestBuilder.graphQl(query: String): HttpResponse =
+    private suspend fun ApplicationTestBuilder.graphQl(
+        query: String,
+        authorizationHeader: String? = null,
+    ): HttpResponse =
         client.post("/graphql") {
             header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            authorizationHeader?.let { header(HttpHeaders.Authorization, it) }
             setBody("""{"query":${json.encodeToString(query)}}""")
         }
 
@@ -322,11 +304,6 @@ class AuthGraphQlTest {
             session = sampleSession(),
         )
 
-    private fun sampleRefreshResult(): RefreshResult =
-        RefreshResult(
-            session = sampleSession(),
-        )
-
     private fun sampleUser(): AuthenticatedUser =
         AuthenticatedUser(
             id = "user-1",
@@ -340,24 +317,20 @@ class AuthGraphQlTest {
 
     private fun sampleSession(): AuthSession =
         AuthSession(
-            accessToken = "access-token",
-            refreshToken = "refresh-token",
-            accessTokenExpiresAt = "2026-04-21T01:00:00Z",
-            refreshTokenExpiresAt = "2026-04-28T00:00:00Z",
+            sessionId = sampleSessionId,
+            idleExpiresAt = "2026-05-23T00:00:00Z",
+            absoluteExpiresAt = "2026-10-20T00:00:00Z",
         )
 }
 
 private class RecordingIdentityAuthGateway(
     private val onLogin: suspend (LoginCommand) -> LoginResult = { error("Not implemented") },
     private val onRegister: suspend (RegisterCommand) -> RegisterResult = { error("Not implemented") },
-    private val onRefresh: suspend (RefreshCommand) -> RefreshResult = { error("Not implemented") },
     private val onLogout: suspend (LogoutCommand) -> Unit = { error("Not implemented") },
 ) : IdentityAuthGateway {
     override suspend fun login(command: LoginCommand): LoginResult = onLogin(command)
 
     override suspend fun register(command: RegisterCommand): RegisterResult = onRegister(command)
-
-    override suspend fun refresh(command: RefreshCommand): RefreshResult = onRefresh(command)
 
     override suspend fun logout(command: LogoutCommand) {
         onLogout(command)
