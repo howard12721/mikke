@@ -156,7 +156,7 @@ class MediaUploadCompletedHandler(
 
         val thumbnail =
             try {
-                thumbnailGenerator.generateJpeg(
+                thumbnailGenerator.generateWebp(
                     sourceBytes = original.bytes,
                     maxSizePx = maxSizePx,
                 )
@@ -276,7 +276,7 @@ class MediaUploadCompletedHandler(
     }
 
     private companion object {
-        const val THUMBNAIL_CONTENT_TYPE = "image/jpeg"
+        const val THUMBNAIL_CONTENT_TYPE = "image/webp"
     }
 }
 
