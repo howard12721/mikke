@@ -10,6 +10,7 @@ data class PublicUser(
     val displayName: String,
     val status: String,
     val avatarMediaId: String?,
+    val avatarUrl: String?,
 )
 
 data class CurrentUser(
@@ -21,6 +22,7 @@ data class CurrentUser(
     val createdAt: String,
     val updatedAt: String,
     val avatarMediaId: String?,
+    val avatarUrl: String?,
 )
 
 interface UserGateway : AutoCloseable {

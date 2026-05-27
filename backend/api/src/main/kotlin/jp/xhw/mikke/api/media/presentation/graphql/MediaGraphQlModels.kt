@@ -1,6 +1,12 @@
 package jp.xhw.mikke.api.media.presentation.graphql
 
-data class CreateMediaUploadInput(
+data class CreateAvatarUploadInput(
+    val contentType: String,
+    val contentLengthBytes: Int,
+    val originalFileName: String? = null,
+)
+
+data class CreatePostPhotoUploadInput(
     val contentType: String,
     val contentLengthBytes: Int,
     val originalFileName: String? = null,
@@ -38,6 +44,7 @@ data class Media(
     val id: String,
     val originalUrl: String,
     val thumbnailUrl: String,
+    val iconUrl: String?,
     val status: String,
     val contentType: String,
     val contentLengthBytes: String,
@@ -70,6 +77,7 @@ fun jp.xhw.mikke.api.media.application.Media.toGraphQl(): Media =
         id = id,
         originalUrl = originalUrl,
         thumbnailUrl = thumbnailUrl,
+        iconUrl = iconUrl,
         status = status,
         contentType = contentType,
         contentLengthBytes = contentLengthBytes.toString(),

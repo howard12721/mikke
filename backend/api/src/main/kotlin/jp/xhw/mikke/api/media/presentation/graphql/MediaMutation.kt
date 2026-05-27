@@ -8,12 +8,24 @@ import jp.xhw.mikke.api.media.application.MediaApiService
 class MediaMutation(
     private val mediaApiService: MediaApiService,
 ) : Mutation {
-    suspend fun createMediaUploadUrl(
-        input: CreateMediaUploadInput,
+    suspend fun createAvatarUploadUrl(
+        input: CreateAvatarUploadInput,
         environment: DataFetchingEnvironment,
     ): MediaUploadUrl =
         mediaApiService
-            .createUploadUrl(
+            .createAvatarUploadUrl(
+                context = environment.apiRequestContext(),
+                contentType = input.contentType,
+                contentLengthBytes = input.contentLengthBytes.toLong(),
+                originalFileName = input.originalFileName,
+            ).toGraphQl()
+
+    suspend fun createPostPhotoUploadUrl(
+        input: CreatePostPhotoUploadInput,
+        environment: DataFetchingEnvironment,
+    ): MediaUploadUrl =
+        mediaApiService
+            .createPostPhotoUploadUrl(
                 context = environment.apiRequestContext(),
                 contentType = input.contentType,
                 contentLengthBytes = input.contentLengthBytes.toLong(),

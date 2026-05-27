@@ -6,6 +6,7 @@ import jp.xhw.mikke.platform.grpc.requireUserUuid
 import jp.xhw.mikke.platform.grpc.withGrpcExceptionMapping
 import jp.xhw.mikke.platform.time.toProtoTimestamp
 import jp.xhw.mikke.services.media.application.*
+import jp.xhw.mikke.services.media.model.MediaVariantKind
 import jp.xhw.mikke.services.media.model.UploaderUserId
 import java.util.logging.Logger
 
@@ -24,6 +25,7 @@ class MediaServiceRpc(
                         contentLengthBytes = request.contentLengthBytes.requirePositive("content_length_bytes"),
                         originalFileName = request.originalFileName.takeIf { it.isNotBlank() },
                         uploaderUserId = uploaderUserId,
+                        generatedVariant = request.generatedVariant.requireGeneratedVariant(),
                     ),
                 )
             }
@@ -128,3 +130,14 @@ private suspend inline fun <T> mapRpcExceptions(crossinline block: () -> T): T =
 private fun formatMediaId(mediaId: jp.xhw.mikke.services.media.model.MediaId): String =
     jp.xhw.mikke.platform.uuid
         .formatGrpcUuid(mediaId.value)
+
+private fun GeneratedVariantKind.requireGeneratedVariant(): MediaVariantKind =
+    when (this) {
+        GeneratedVariantKind.GENERATED_VARIANT_KIND_THUMBNAIL -> MediaVariantKind.THUMBNAIL
+
+        GeneratedVariantKind.GENERATED_VARIANT_KIND_ICON -> MediaVariantKind.ICON
+
+        GeneratedVariantKind.GENERATED_VARIANT_KIND_UNSPECIFIED,
+        GeneratedVariantKind.UNRECOGNIZED,
+        -> throw Status.INVALID_ARGUMENT.withDescription("generated_variant must be THUMBNAIL or ICON").asRuntimeException()
+    }

@@ -4,6 +4,7 @@ import io.grpc.ManagedChannel
 import jp.xhw.mikke.api.common.infrastructure.call
 import jp.xhw.mikke.api.graphql.ApiRequestContext
 import jp.xhw.mikke.api.infrastructure.*
+import jp.xhw.mikke.api.media.application.GeneratedVariant
 import jp.xhw.mikke.api.media.application.Media
 import jp.xhw.mikke.api.media.application.MediaGateway
 import jp.xhw.mikke.api.media.application.MediaUploadUrl
@@ -21,6 +22,7 @@ class GrpcMediaGateway(
         contentType: String,
         contentLengthBytes: Long,
         originalFileName: String?,
+        generatedVariant: GeneratedVariant,
     ): MediaUploadUrl =
         call {
             val builder =
@@ -28,6 +30,7 @@ class GrpcMediaGateway(
                     .newBuilder()
                     .setContentType(contentType)
                     .setContentLengthBytes(contentLengthBytes)
+                    .setGeneratedVariant(generatedVariant.toProto())
                     .setActor(context.requireActorProto())
             originalFileName?.let(builder::setOriginalFileName)
             stub.createUploadUrl(builder.build()).toMediaUploadUrl()
@@ -101,6 +104,12 @@ class GrpcMediaGateway(
     }
 }
 
+private fun GeneratedVariant.toProto(): GeneratedVariantKind =
+    when (this) {
+        GeneratedVariant.THUMBNAIL -> GeneratedVariantKind.GENERATED_VARIANT_KIND_THUMBNAIL
+        GeneratedVariant.ICON -> GeneratedVariantKind.GENERATED_VARIANT_KIND_ICON
+    }
+
 private fun CreateUploadUrlResponse.toMediaUploadUrl(): MediaUploadUrl =
     MediaUploadUrl(
         mediaId = mediaId,
@@ -127,6 +136,7 @@ private fun ProtoMedia.toMedia(): Media =
         objectKey = objectKey,
         originalUrl = originalUrl,
         thumbnailUrl = thumbnailUrl,
+        iconUrl = iconUrl.takeIf { it.isNotEmpty() },
         status = status.name.removePrefix("MEDIA_STATUS_"),
         contentType = contentType,
         contentLengthBytes = contentLengthBytes,

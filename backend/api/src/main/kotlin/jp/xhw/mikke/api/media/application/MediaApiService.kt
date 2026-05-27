@@ -7,7 +7,7 @@ import jp.xhw.mikke.api.graphql.ApiRequestContext
 class MediaApiService(
     private val mediaGateway: MediaGateway,
 ) {
-    suspend fun createUploadUrl(
+    suspend fun createAvatarUploadUrl(
         context: ApiRequestContext,
         contentType: String,
         contentLengthBytes: Long,
@@ -18,6 +18,21 @@ class MediaApiService(
             contentType = contentType.requireText("contentType"),
             contentLengthBytes = contentLengthBytes,
             originalFileName = originalFileName?.trim()?.takeIf { it.isNotEmpty() },
+            generatedVariant = GeneratedVariant.ICON,
+        )
+
+    suspend fun createPostPhotoUploadUrl(
+        context: ApiRequestContext,
+        contentType: String,
+        contentLengthBytes: Long,
+        originalFileName: String?,
+    ): MediaUploadUrl =
+        mediaGateway.createUploadUrl(
+            context = context,
+            contentType = contentType.requireText("contentType"),
+            contentLengthBytes = contentLengthBytes,
+            originalFileName = originalFileName?.trim()?.takeIf { it.isNotEmpty() },
+            generatedVariant = GeneratedVariant.THUMBNAIL,
         )
 
     suspend fun checkUpload(

@@ -91,7 +91,10 @@ class MediaUploadCompletedHandlerTest {
                     database = database,
                     repository = repository,
                     objectStorage = objectStorage,
-                    thumbnailGenerator = ThumbnailGenerator { _, _ -> throw UnsupportedImageException("pixel-limit breach") },
+                    thumbnailGenerator =
+                        ThumbnailGenerator { _, _, _, _ ->
+                            throw UnsupportedImageException("pixel-limit breach")
+                        },
                 )
 
             runBlocking {
@@ -163,7 +166,10 @@ class MediaUploadCompletedHandlerTest {
                     repository = repository,
                     objectStorage = objectStorage,
                     mediaOutbox = outbox,
-                    thumbnailGenerator = { _, _ -> GeneratedThumbnail(byteArrayOf(9), width = 4, height = 4) },
+                    thumbnailGenerator =
+                        { _, _, _, _ ->
+                            GeneratedThumbnail(byteArrayOf(9), width = 4, height = 4)
+                        },
                 )
 
             runBlocking {
@@ -180,7 +186,7 @@ class MediaUploadCompletedHandlerTest {
         objectStorage: FakeObjectStorageClient,
         mediaOutbox: RecordingMediaOutbox = RecordingMediaOutbox(),
         thumbnailGenerator: ThumbnailGenerator =
-            ThumbnailGenerator { _, _ ->
+            ThumbnailGenerator { _, _, _, _ ->
                 GeneratedThumbnail(
                     byteArrayOf(9),
                     width = 4,
@@ -367,7 +373,7 @@ private class RecordingMediaOutbox : MediaOutbox {
 
     override fun appendUploadCompleted(media: MediaRecord) = Unit
 
-    override fun appendThumbnailReady(variant: MediaVariantRecord) {
+    override fun appendVariantReady(variant: MediaVariantRecord) {
         thumbnailReadyCount += 1
     }
 

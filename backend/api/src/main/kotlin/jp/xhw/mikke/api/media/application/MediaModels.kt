@@ -7,6 +7,7 @@ data class Media(
     val objectKey: String,
     val originalUrl: String,
     val thumbnailUrl: String,
+    val iconUrl: String?,
     val status: String,
     val contentType: String,
     val contentLengthBytes: Long,
@@ -40,6 +41,7 @@ interface MediaGateway : AutoCloseable {
         contentType: String,
         contentLengthBytes: Long,
         originalFileName: String?,
+        generatedVariant: GeneratedVariant,
     ): MediaUploadUrl
 
     suspend fun checkUpload(
@@ -57,4 +59,9 @@ interface MediaGateway : AutoCloseable {
         context: ApiRequestContext,
         mediaIds: List<String>,
     ): List<Media>
+}
+
+enum class GeneratedVariant {
+    THUMBNAIL,
+    ICON,
 }

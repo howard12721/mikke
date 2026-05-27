@@ -35,7 +35,7 @@ class ApiDependencies(
     val authApiService: AuthApiService,
     val sessionAuthenticator: GatewaySessionAuthenticator,
     val touchScheduler: GatewaySessionTouchScheduler,
-    val userApiService: UserApiService = UserApiService(UnavailableUserGateway),
+    val userApiService: UserApiService = UserApiService(UnavailableUserGateway, UnavailableMediaGateway),
     val mediaApiService: MediaApiService = MediaApiService(UnavailableMediaGateway),
     val postApiService: PostApiService =
         PostApiService(
@@ -79,7 +79,7 @@ class ApiDependencies(
                 authApiService = AuthApiService(identityAuthGateway = identityAuthGateway),
                 sessionAuthenticator = sessionAuthenticator,
                 touchScheduler = touchScheduler,
-                userApiService = UserApiService(userGateway = userGateway),
+                userApiService = UserApiService(userGateway = userGateway, mediaGateway = mediaGateway),
                 mediaApiService = MediaApiService(mediaGateway = mediaGateway),
                 postApiService =
                     PostApiService(
@@ -154,6 +154,7 @@ private object UnavailableMediaGateway : MediaGateway {
         contentType: String,
         contentLengthBytes: Long,
         originalFileName: String?,
+        generatedVariant: GeneratedVariant,
     ): MediaUploadUrl = unavailableFeature()
 
     override suspend fun checkUpload(

@@ -29,6 +29,7 @@ class MediaServiceTest {
                     contentLengthBytes = 2048,
                     originalFileName = "photo.jpg",
                     uploaderUserId = uploader,
+                    generatedVariant = MediaVariantKind.THUMBNAIL,
                 ),
             )
 
@@ -58,6 +59,7 @@ class MediaServiceTest {
                     contentLengthBytes = 4096,
                     originalFileName = null,
                     uploaderUserId = uploader,
+                    generatedVariant = MediaVariantKind.THUMBNAIL,
                 ),
             )
 
@@ -84,6 +86,52 @@ class MediaServiceTest {
     }
 
     @Test
+    fun `createUploadUrl persists icon variant when requested`() {
+        val repository = InMemoryMediaRepository()
+        val outbox = RecordingMediaOutbox()
+        val objectStorage = FakeObjectStorageClient()
+        val service = createService(repository, outbox, objectStorage)
+        val uploader = UploaderUserId(Uuid.parse("00000000-0000-4000-8000-000000000010"))
+
+        service.createUploadUrl(
+            CreateUploadUrlCommand(
+                contentType = "image/png",
+                contentLengthBytes = 1024,
+                originalFileName = null,
+                uploaderUserId = uploader,
+                generatedVariant = MediaVariantKind.ICON,
+            ),
+        )
+
+        val generatedVariant = repository.savedMedia?.variants?.firstOrNull { it.variant == MediaVariantKind.ICON }
+        assertNotNull(generatedVariant)
+    }
+
+    @Test
+    fun `createUploadUrl rejects original as generated variant`() {
+        val repository = InMemoryMediaRepository()
+        val outbox = RecordingMediaOutbox()
+        val objectStorage = FakeObjectStorageClient()
+        val service = createService(repository, outbox, objectStorage)
+        val uploader = UploaderUserId(Uuid.parse("00000000-0000-4000-8000-000000000010"))
+
+        val error =
+            assertThrows(IllegalArgumentException::class.java) {
+                service.createUploadUrl(
+                    CreateUploadUrlCommand(
+                        contentType = "image/png",
+                        contentLengthBytes = 1024,
+                        originalFileName = null,
+                        uploaderUserId = uploader,
+                        generatedVariant = MediaVariantKind.ORIGINAL,
+                    ),
+                )
+            }
+
+        assertTrue(error.message.orEmpty().contains("generatedVariant"))
+    }
+
+    @Test
     fun `checkUpload returns pending when object is missing`() {
         val repository = InMemoryMediaRepository()
         val outbox = RecordingMediaOutbox()
@@ -98,6 +146,7 @@ class MediaServiceTest {
                     contentLengthBytes = 1024,
                     originalFileName = null,
                     uploaderUserId = uploader,
+                    generatedVariant = MediaVariantKind.THUMBNAIL,
                 ),
             )
 
@@ -127,6 +176,7 @@ class MediaServiceTest {
                     contentLengthBytes = 100,
                     originalFileName = null,
                     uploaderUserId = uploader,
+                    generatedVariant = MediaVariantKind.THUMBNAIL,
                 ),
             )
 
@@ -149,6 +199,7 @@ class MediaServiceTest {
                     contentLengthBytes = 100,
                     originalFileName = null,
                     uploaderUserId = uploader,
+                    generatedVariant = MediaVariantKind.THUMBNAIL,
                 ),
             )
         val second =
@@ -158,6 +209,7 @@ class MediaServiceTest {
                     contentLengthBytes = 200,
                     originalFileName = null,
                     uploaderUserId = uploader,
+                    generatedVariant = MediaVariantKind.THUMBNAIL,
                 ),
             )
 
@@ -326,7 +378,7 @@ private class RecordingMediaOutbox : MediaOutbox {
             )
     }
 
-    override fun appendThumbnailReady(variant: MediaVariantRecord) {
+    override fun appendVariantReady(variant: MediaVariantRecord) {
         entries +=
             OutboxEntry(
                 id = Uuid.random(),

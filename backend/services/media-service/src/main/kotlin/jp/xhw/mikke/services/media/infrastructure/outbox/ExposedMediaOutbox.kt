@@ -9,6 +9,7 @@ import jp.xhw.mikke.platform.uuid.formatGrpcUuid
 import jp.xhw.mikke.services.media.application.port.MediaOutbox
 import jp.xhw.mikke.services.media.model.MediaId
 import jp.xhw.mikke.services.media.model.MediaRecord
+import jp.xhw.mikke.services.media.model.MediaVariantKind
 import jp.xhw.mikke.services.media.model.MediaVariantRecord
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -67,7 +68,7 @@ class ExposedMediaOutbox(
         )
     }
 
-    override fun appendThumbnailReady(variant: MediaVariantRecord) {
+    override fun appendVariantReady(variant: MediaVariantRecord) {
         requireNotNull(
             variant.contentLengthBytes,
         ) { "contentLengthBytes is required for thumbnail ready event mediaId: ${variant.mediaId}" }
@@ -90,7 +91,7 @@ class ExposedMediaOutbox(
             )
 
         insert(
-            eventType = MediaEventTypes.THUMBNAIL_READY,
+            eventType = variant.toReadyEventType(),
             aggregateId = variant.mediaId.value,
             payloadJson = json.encodeToString(payload),
         )
@@ -136,6 +137,13 @@ class ExposedMediaOutbox(
         val json = Json { encodeDefaults = false }
     }
 }
+
+private fun MediaVariantRecord.toReadyEventType(): String =
+    when (variant) {
+        MediaVariantKind.THUMBNAIL -> MediaEventTypes.THUMBNAIL_READY
+        MediaVariantKind.ICON -> MediaEventTypes.ICON_READY
+        MediaVariantKind.ORIGINAL -> error("ORIGINAL variant cannot emit ready outbox event")
+    }
 
 @Serializable
 private data class UploadUrlCreatedPayload(

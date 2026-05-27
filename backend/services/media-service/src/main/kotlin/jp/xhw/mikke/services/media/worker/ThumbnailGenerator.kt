@@ -14,6 +14,8 @@ fun interface ThumbnailGenerator {
     fun generateWebp(
         sourceBytes: ByteArray,
         maxSizePx: Int,
+        targetAspectWidth: Int,
+        targetAspectHeight: Int,
     ): GeneratedThumbnail
 }
 
@@ -59,7 +61,11 @@ class ImageIoThumbnailGenerator(
     override fun generateWebp(
         sourceBytes: ByteArray,
         maxSizePx: Int,
+        targetAspectWidth: Int,
+        targetAspectHeight: Int,
     ): GeneratedThumbnail {
+        require(targetAspectWidth > 0) { "targetAspectWidth must be positive" }
+        require(targetAspectHeight > 0) { "targetAspectHeight must be positive" }
         val source =
             try {
                 decodeBounded(sourceBytes)
@@ -70,7 +76,7 @@ class ImageIoThumbnailGenerator(
             }
 
         val sourceAspect = source.width.toDouble() / source.height.toDouble()
-        val targetAspect = THUMBNAIL_ASPECT_WIDTH.toDouble() / THUMBNAIL_ASPECT_HEIGHT.toDouble()
+        val targetAspect = targetAspectWidth.toDouble() / targetAspectHeight.toDouble()
         val cropWidth: Int
         val cropHeight: Int
         if (sourceAspect > targetAspect) {
@@ -160,10 +166,5 @@ class ImageIoThumbnailGenerator(
         while (readers.hasNext()) {
             readers.next().dispose()
         }
-    }
-
-    private companion object {
-        const val THUMBNAIL_ASPECT_WIDTH = 16
-        const val THUMBNAIL_ASPECT_HEIGHT = 9
     }
 }

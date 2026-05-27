@@ -30,6 +30,7 @@ message CreateUploadUrlRequest {
   int64 content_length_bytes = 2;
   string original_file_name = 3;
   mikke.common.v1.ActorContext actor = 4;
+  GeneratedVariantKind generated_variant = 5;
 }
 
 message CreateUploadUrlResponse {
@@ -93,6 +94,7 @@ message Media {
   string uploader_user_id = 9;
   google.protobuf.Timestamp created_at = 10;
   google.protobuf.Timestamp uploaded_at = 11;
+  string icon_url = 12;
 }
 
 message MediaVariantInfo {
@@ -136,4 +138,10 @@ enum MediaVariantStatus {
   MEDIA_VARIANT_STATUS_PENDING = 1;
   MEDIA_VARIANT_STATUS_READY = 2;
   MEDIA_VARIANT_STATUS_FAILED = 3;
+}
+
+enum GeneratedVariantKind {
+  GENERATED_VARIANT_KIND_UNSPECIFIED = 0;
+  GENERATED_VARIANT_KIND_THUMBNAIL = 1;
+  GENERATED_VARIANT_KIND_ICON = 2;
 }
