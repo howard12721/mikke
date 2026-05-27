@@ -32,6 +32,7 @@ dependencies {
     implementation(libs.redis.client)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.imageio.webp)
 
     runtimeOnly(libs.logback.classic)
 

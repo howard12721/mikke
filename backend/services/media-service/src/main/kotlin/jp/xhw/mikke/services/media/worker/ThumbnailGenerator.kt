@@ -11,7 +11,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 fun interface ThumbnailGenerator {
-    fun generateJpeg(
+    fun generateWebp(
         sourceBytes: ByteArray,
         maxSizePx: Int,
     ): GeneratedThumbnail
@@ -53,9 +53,10 @@ class ImageIoThumbnailGenerator(
 ) : ThumbnailGenerator {
     init {
         require(maxSourcePixels > 0) { "maxSourcePixels must be positive" }
+        ImageIO.scanForPlugins()
     }
 
-    override fun generateJpeg(
+    override fun generateWebp(
         sourceBytes: ByteArray,
         maxSizePx: Int,
     ): GeneratedThumbnail {
@@ -68,26 +69,52 @@ class ImageIoThumbnailGenerator(
                 throw UnsupportedImageException("Unable to decode image", e)
             }
 
-        val scale = min(1.0, maxSizePx.toDouble() / maxOf(source.width, source.height).toDouble())
-        val width = (source.width * scale).roundToInt().coerceAtLeast(1)
-        val height = (source.height * scale).roundToInt().coerceAtLeast(1)
-        val thumbnail = BufferedImage(width, height, BufferedImage.TYPE_INT_RGB)
+        val sourceAspect = source.width.toDouble() / source.height.toDouble()
+        val targetAspect = THUMBNAIL_ASPECT_WIDTH.toDouble() / THUMBNAIL_ASPECT_HEIGHT.toDouble()
+        val cropWidth: Int
+        val cropHeight: Int
+        if (sourceAspect > targetAspect) {
+            cropHeight = source.height
+            cropWidth = (cropHeight.toDouble() * targetAspect).roundToInt().coerceAtLeast(1)
+        } else {
+            cropWidth = source.width
+            cropHeight = (cropWidth.toDouble() / targetAspect).roundToInt().coerceAtLeast(1)
+        }
+        val cropX = ((source.width - cropWidth) / 2).coerceAtLeast(0)
+        val cropY = ((source.height - cropHeight) / 2).coerceAtLeast(0)
+
+        val scale = min(1.0, maxSizePx.toDouble() / cropWidth.toDouble())
+        val targetWidth = (cropWidth * scale).roundToInt().coerceAtLeast(1)
+        val targetHeight = (cropHeight * scale).roundToInt().coerceAtLeast(1)
+
+        val thumbnail = BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB)
         val graphics = thumbnail.createGraphics()
         try {
             graphics.color = Color.WHITE
-            graphics.fillRect(0, 0, width, height)
+            graphics.fillRect(0, 0, targetWidth, targetHeight)
             graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC)
             graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            graphics.drawImage(source, 0, 0, width, height, null)
+            graphics.drawImage(
+                source,
+                0,
+                0,
+                targetWidth,
+                targetHeight,
+                cropX,
+                cropY,
+                cropX + cropWidth,
+                cropY + cropHeight,
+                null,
+            )
         } finally {
             graphics.dispose()
         }
 
         val output = ByteArrayOutputStream()
         try {
-            if (!ImageIO.write(thumbnail, "jpg", output)) {
-                throw UnsupportedImageException()
+            if (!ImageIO.write(thumbnail, "webp", output)) {
+                throw UnsupportedImageException("WebP encoder is not available")
             }
         } catch (e: UnsupportedImageException) {
             throw e
@@ -97,8 +124,8 @@ class ImageIoThumbnailGenerator(
 
         return GeneratedThumbnail(
             bytes = output.toByteArray(),
-            width = width,
-            height = height,
+            width = targetWidth,
+            height = targetHeight,
         )
     }
 
@@ -133,5 +160,10 @@ class ImageIoThumbnailGenerator(
         while (readers.hasNext()) {
             readers.next().dispose()
         }
+    }
+
+    private companion object {
+        const val THUMBNAIL_ASPECT_WIDTH = 16
+        const val THUMBNAIL_ASPECT_HEIGHT = 9
     }
 }
