@@ -7,9 +7,12 @@ import jp.xhw.mikke.api.common.presentation.graphql.toApplication
 import jp.xhw.mikke.api.common.presentation.graphql.toGraphQl
 import jp.xhw.mikke.api.graphql.apiRequestContext
 import jp.xhw.mikke.api.guess.application.GuessApiService
+import jp.xhw.mikke.api.user.application.UserApiService
+import jp.xhw.mikke.api.user.presentation.graphql.loadGraphQlUsersById
 
 class GuessQuery(
     private val guessApiService: GuessApiService,
+    private val userApiService: UserApiService,
 ) : Query {
     suspend fun myGuessForPost(
         postId: String,
@@ -31,7 +34,11 @@ class GuessQuery(
         environment: DataFetchingEnvironment,
     ): PostRankingPage {
         val result = guessApiService.listPostRankings(environment.apiRequestContext(), page.toApplication())
-        return PostRankingPage(entries = result.items.map { it.toGraphQl() }, pageInfo = result.pageInfo.toGraphQl())
+        val usersById = userApiService.loadGraphQlUsersById(environment, result.items.map { it.userId })
+        return PostRankingPage(
+            entries = result.items.map { it.toGraphQl(usersById) },
+            pageInfo = result.pageInfo.toGraphQl(),
+        )
     }
 
     suspend fun guessRankings(
@@ -41,6 +48,10 @@ class GuessQuery(
     ): GuessRankingPage {
         val result =
             guessApiService.listGuessRankings(environment.apiRequestContext(), metric.name, page.toApplication())
-        return GuessRankingPage(entries = result.items.map { it.toGraphQl() }, pageInfo = result.pageInfo.toGraphQl())
+        val usersById = userApiService.loadGraphQlUsersById(environment, result.items.map { it.userId })
+        return GuessRankingPage(
+            entries = result.items.map { it.toGraphQl(usersById) },
+            pageInfo = result.pageInfo.toGraphQl(),
+        )
     }
 }
