@@ -28,8 +28,11 @@ services:
   redis:
     image: redis:8.6.3-alpine3.23
     container_name: mikke-redis
+    command: [ "redis-server", "--appendonly", "yes" ]
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/data
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
@@ -123,6 +126,7 @@ services:
       MARIADB_PASSWORD: mikke
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      MIKKE_INTERNAL_RPC_TOKEN: mikke-dev-internal-rpc-token
     ports:
       - "50051:50051"
     depends_on:
@@ -241,7 +245,6 @@ services:
       POST_SERVICE_HOST: post-service
       POST_SERVICE_PORT: "50053"
       POST_SERVICE_TARGET: dns:///post-service:50053
-      IDENTITY_JWT_SECRET: dev-identity-secret
       MIKKE_INTERNAL_RPC_TOKEN: mikke-dev-internal-rpc-token
     ports:
       - "50055:50055"
@@ -338,3 +341,4 @@ services:
 volumes:
   mariadb-data:
   garage-data:
+  redis-data:
