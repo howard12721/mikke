@@ -46,6 +46,12 @@ interface PostGateway : AutoCloseable {
         page: PageInput,
     ): PageResult<Post>
 
+    suspend fun listUserPosts(
+        context: ApiRequestContext,
+        userId: String,
+        page: PageInput,
+    ): PageResult<Post>
+
     suspend fun listMyPosts(
         context: ApiRequestContext,
         page: PageInput,

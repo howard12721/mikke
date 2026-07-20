@@ -244,6 +244,7 @@ type Query {
   searchUsers(page: PageInput, query: String!): UserSearchPayload!
   timeline(page: PageInput): TimelinePage!
   user(id: String!): User!
+  userPosts(page: PageInput, userId: String!): TimelinePage!
   userScoreSummary(userId: String!): UserScoreSummary!
 }
 

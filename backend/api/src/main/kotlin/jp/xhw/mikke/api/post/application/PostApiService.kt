@@ -58,6 +58,15 @@ class PostApiService(
         return posts.toTimelineItems(context)
     }
 
+    suspend fun userPosts(
+        context: ApiRequestContext,
+        userId: String,
+        page: PageInput,
+    ): PageResult<TimelineItem> {
+        val posts = postGateway.listUserPosts(context, userId.requireText("userId"), page.normalized())
+        return posts.toTimelineItems(context)
+    }
+
     suspend fun timeline(
         context: ApiRequestContext,
         page: PageInput,

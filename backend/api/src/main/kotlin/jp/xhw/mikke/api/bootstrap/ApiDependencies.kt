@@ -196,6 +196,12 @@ private object UnavailablePostGateway : PostGateway {
         page: PageInput,
     ): PageResult<Post> = unavailableFeature()
 
+    override suspend fun listUserPosts(
+        context: ApiRequestContext,
+        userId: String,
+        page: PageInput,
+    ): PageResult<Post> = unavailableFeature()
+
     override suspend fun listMyPosts(
         context: ApiRequestContext,
         page: PageInput,
