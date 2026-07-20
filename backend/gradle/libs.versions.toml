@@ -17,7 +17,7 @@ kotlin-logging = "8.0.4"
 opentelemetry = "1.62.0"
 junit = "6.1.0"
 ktlint-plugin = "14.2.0"
-aws-sdk = "2.44.13"
+aws-sdk = "2.48.3"
 scrimage = "4.6.6"
 
 [libraries]
