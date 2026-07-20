@@ -181,7 +181,6 @@ private object UnavailablePostGateway : PostGateway {
         context: ApiRequestContext,
         mediaId: String,
         caption: String?,
-        visibility: String,
         location: GeoPoint,
         accuracyMeters: Double,
     ): Post = unavailableFeature()
@@ -211,12 +210,6 @@ private object UnavailablePostGateway : PostGateway {
         context: ApiRequestContext,
         postId: String,
         caption: String,
-    ): Post = unavailableFeature()
-
-    override suspend fun updateVisibility(
-        context: ApiRequestContext,
-        postId: String,
-        visibility: String,
     ): Post = unavailableFeature()
 
     override suspend fun deletePost(

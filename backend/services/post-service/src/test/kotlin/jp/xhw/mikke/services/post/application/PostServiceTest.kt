@@ -36,13 +36,13 @@ class PostServiceTest {
                         authorUserId = authorId,
                         mediaId = mediaId,
                         caption = "hello",
-                        visibility = PostVisibility.FRIENDS,
                         location = validLocation(),
                     ),
                 )
             }
 
         assertEquals(PostStatus.ACTIVE, result.status)
+        assertEquals(PostVisibility.FRIENDS, result.visibility)
         assertEquals("hello", result.caption)
         assertEquals(1, outbox.entries.size)
         assertEquals(PostEventTypes.CREATED, outbox.entries.single().eventType)
@@ -60,7 +60,6 @@ class PostServiceTest {
                             authorUserId = authorId,
                             mediaId = mediaId,
                             caption = "a".repeat(501),
-                            visibility = PostVisibility.FRIENDS,
                             location = validLocation(),
                         ),
                     )
@@ -81,7 +80,6 @@ class PostServiceTest {
                         authorUserId = authorId,
                         mediaId = mediaId,
                         caption = "",
-                        visibility = PostVisibility.FRIENDS,
                         location = validLocation().copy(accuracyMeters = 0.0),
                     ),
                 )
@@ -124,8 +122,8 @@ class PostServiceTest {
     }
 
     @Test
-    fun `getPost allows author to view own private post`() {
-        val post = activePost(visibility = PostVisibility.PRIVATE)
+    fun `getPost allows author to view own friends-only post`() {
+        val post = activePost()
         val service = createService(repository = RecordingPostRepository(initial = listOf(post)))
 
         val result =
@@ -137,9 +135,13 @@ class PostServiceTest {
     }
 
     @Test
-    fun `getPost denies private post to non author`() {
-        val post = activePost(visibility = PostVisibility.PRIVATE)
-        val service = createService(repository = RecordingPostRepository(initial = listOf(post)))
+    fun `getPost denies friends-only post to non friend`() {
+        val post = activePost(visibility = PostVisibility.FRIENDS, authorUserId = friendId)
+        val service =
+            createService(
+                repository = RecordingPostRepository(initial = listOf(post)),
+                visibilityAuthorizer = RecordingPostVisibilityAuthorizer(canView = false),
+            )
 
         assertThrows(PermissionDeniedException::class.java) {
             runBlocking {
@@ -180,24 +182,6 @@ class PostServiceTest {
             service.getPost(post.id, authorId)
         }
 
-        assertTrue(authorizer.calls.isEmpty())
-    }
-
-    @Test
-    fun `getPost does not call friendship authorizer for private post denied to viewer`() {
-        val post = activePost(visibility = PostVisibility.PRIVATE, authorUserId = friendId)
-        val authorizer = RecordingPostVisibilityAuthorizer(canView = true)
-        val service =
-            createService(
-                repository = RecordingPostRepository(initial = listOf(post)),
-                visibilityAuthorizer = authorizer,
-            )
-
-        assertThrows(PermissionDeniedException::class.java) {
-            runBlocking {
-                service.getPost(post.id, viewerId)
-            }
-        }
         assertTrue(authorizer.calls.isEmpty())
     }
 
@@ -250,25 +234,8 @@ class PostServiceTest {
     }
 
     @Test
-    fun `updatePostVisibility writes visibility updated outbox`() {
-        val post = activePost(visibility = PostVisibility.FRIENDS)
-        val outbox = RecordingPostOutboxRepository()
-        val service =
-            createService(
-                repository = RecordingPostRepository(initial = listOf(post)),
-                outbox = outbox,
-            )
-
-        runBlocking {
-            service.updatePostVisibility(post.id, authorId, PostVisibility.PRIVATE)
-        }
-
-        assertEquals(PostEventTypes.VISIBILITY_UPDATED, outbox.entries.single().eventType)
-    }
-
-    @Test
     fun `getPostLocationForGuess returns location without friendship check`() {
-        val post = activePost(visibility = PostVisibility.PRIVATE)
+        val post = activePost()
         val service = createService(repository = RecordingPostRepository(initial = listOf(post)))
 
         val result = service.getPostLocationForGuess(post.id)
@@ -278,7 +245,7 @@ class PostServiceTest {
     }
 
     @Test
-    fun `listVisiblePosts returns only visible friends-only posts in descending order`() {
+    fun `listVisiblePosts returns visible friends-only posts in descending order`() {
         val older =
             activePost(
                 id = PostId(Uuid.random()),
@@ -293,15 +260,9 @@ class PostServiceTest {
                 visibility = PostVisibility.FRIENDS,
                 createdAt = Instant.fromEpochSeconds(fixedInstant.epochSeconds + 10, 0),
             )
-        val privatePost =
-            activePost(
-                authorUserId = friendId,
-                visibility = PostVisibility.PRIVATE,
-                createdAt = Instant.fromEpochSeconds(fixedInstant.epochSeconds + 20, 0),
-            )
         val service =
             createService(
-                repository = RecordingPostRepository(initial = listOf(older, newer, privatePost)),
+                repository = RecordingPostRepository(initial = listOf(older, newer)),
                 visibilityAuthorizer = RecordingPostVisibilityAuthorizer(canView = true),
             )
 
@@ -336,16 +297,9 @@ class PostServiceTest {
                 visibility = PostVisibility.FRIENDS,
                 createdAt = Instant.fromEpochSeconds(fixedInstant.epochSeconds + 30, 0),
             )
-        val privatePost =
-            activePost(
-                id = PostId(Uuid.random()),
-                authorUserId = friendId,
-                visibility = PostVisibility.PRIVATE,
-                createdAt = Instant.fromEpochSeconds(fixedInstant.epochSeconds + 40, 0),
-            )
         val service =
             createService(
-                repository = RecordingPostRepository(initial = listOf(visible3, visible2, visible1, privatePost)),
+                repository = RecordingPostRepository(initial = listOf(visible3, visible2, visible1)),
                 visibilityAuthorizer = RecordingPostVisibilityAuthorizer(canView = true),
             )
 
@@ -367,6 +321,23 @@ class PostServiceTest {
         assertTrue(firstPage.hasNextPage)
         assertEquals(listOf(visible3.id), secondPage.items.map { it.id })
         assertFalse(secondPage.hasNextPage)
+    }
+
+    @Test
+    fun `listUserPosts hides all posts from non friend`() {
+        val post = activePost(authorUserId = friendId)
+        val service =
+            createService(
+                repository = RecordingPostRepository(initial = listOf(post)),
+                visibilityAuthorizer = RecordingPostVisibilityAuthorizer(canView = false),
+            )
+
+        val slice =
+            runBlocking {
+                service.listUserPosts(friendId, viewerId, limit = 10, cursor = null)
+            }
+
+        assertTrue(slice.items.isEmpty())
     }
 
     @Test
@@ -471,7 +442,6 @@ class PostServiceTest {
             authorUserId = authorId,
             mediaId = mediaId,
             caption = "hello",
-            visibility = PostVisibility.FRIENDS,
             location = validLocation(),
         )
 
@@ -543,17 +513,6 @@ private class RecordingPostRepository(
     ): Post? {
         val existing = posts[id]?.takeIf { it.status == PostStatus.ACTIVE } ?: return null
         val updated = existing.copy(caption = caption, updatedAt = updatedAt)
-        posts[id] = updated
-        return updated
-    }
-
-    override fun updateVisibility(
-        id: PostId,
-        visibility: PostVisibility,
-        updatedAt: Instant,
-    ): Post? {
-        val existing = posts[id]?.takeIf { it.status == PostStatus.ACTIVE } ?: return null
-        val updated = existing.copy(visibility = visibility, updatedAt = updatedAt)
         posts[id] = updated
         return updated
     }

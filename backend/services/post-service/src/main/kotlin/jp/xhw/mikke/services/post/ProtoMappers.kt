@@ -34,7 +34,6 @@ fun PostLocation.toProto(): GeoPoint =
 fun DomainPostVisibility.toProto(): PostVisibility =
     when (this) {
         DomainPostVisibility.FRIENDS -> PostVisibility.POST_VISIBILITY_FRIENDS
-        DomainPostVisibility.PRIVATE -> PostVisibility.POST_VISIBILITY_PRIVATE
     }
 
 fun DomainPostStatus.toProto(): PostStatus =
@@ -46,6 +45,5 @@ fun DomainPostStatus.toProto(): PostStatus =
 fun PostVisibility.toDomain(): DomainPostVisibility =
     when (this) {
         PostVisibility.POST_VISIBILITY_FRIENDS -> DomainPostVisibility.FRIENDS
-        PostVisibility.POST_VISIBILITY_PRIVATE -> DomainPostVisibility.PRIVATE
         else -> throw ValidationException("visibility is required")
     }

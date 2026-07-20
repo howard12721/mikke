@@ -4,7 +4,6 @@ import kotlin.time.Instant
 
 enum class PostVisibility {
     FRIENDS,
-    PRIVATE,
 }
 
 enum class PostStatus {

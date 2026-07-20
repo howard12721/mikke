@@ -17,15 +17,16 @@ service PostService {
   rpc ListMyPosts(ListMyPostsRequest) returns (ListMyPostsResponse);
   rpc DeletePost(DeletePostRequest) returns (DeletePostResponse);
   rpc UpdatePostCaption(UpdatePostCaptionRequest) returns (UpdatePostCaptionResponse);
-  rpc UpdatePostVisibility(UpdatePostVisibilityRequest) returns (UpdatePostVisibilityResponse);
   rpc CheckPostVisibility(CheckPostVisibilityRequest) returns (CheckPostVisibilityResponse);
   rpc GetPostLocationForGuess(GetPostLocationForGuessRequest) returns (GetPostLocationForGuessResponse);
 }
 
 message CreatePostRequest {
+  reserved 3;
+  reserved "visibility";
+
   string media_id = 1;
   string caption = 2;
-  PostVisibility visibility = 3;
   mikke.common.v1.GeoPoint location = 4;
   double accuracy_meters = 5;
   mikke.common.v1.ActorContext actor = 6;
@@ -105,16 +106,6 @@ message UpdatePostCaptionResponse {
   Post post = 1;
 }
 
-message UpdatePostVisibilityRequest {
-  string post_id = 1;
-  PostVisibility visibility = 2;
-  mikke.common.v1.ActorContext actor = 3;
-}
-
-message UpdatePostVisibilityResponse {
-  Post post = 1;
-}
-
 message CheckPostVisibilityRequest {
   string post_id = 1;
   mikke.common.v1.ActorContext actor = 2;
@@ -154,9 +145,11 @@ message PostLocation {
 }
 
 enum PostVisibility {
+  reserved 2;
+  reserved "POST_VISIBILITY_PRIVATE";
+
   POST_VISIBILITY_UNSPECIFIED = 0;
   POST_VISIBILITY_FRIENDS = 1;
-  POST_VISIBILITY_PRIVATE = 2;
 }
 
 enum PostStatus {

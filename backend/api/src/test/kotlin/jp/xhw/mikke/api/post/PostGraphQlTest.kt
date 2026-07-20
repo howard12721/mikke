@@ -218,7 +218,6 @@ private class RecordingPostGateway : PostGateway {
         context: ApiRequestContext,
         mediaId: String,
         caption: String?,
-        visibility: String,
         location: GeoPoint,
         accuracyMeters: Double,
     ): Post = error("Not implemented")
@@ -242,12 +241,6 @@ private class RecordingPostGateway : PostGateway {
         context: ApiRequestContext,
         postId: String,
         caption: String,
-    ): Post = error("Not implemented")
-
-    override suspend fun updateVisibility(
-        context: ApiRequestContext,
-        postId: String,
-        visibility: String,
     ): Post = error("Not implemented")
 
     override suspend fun deletePost(

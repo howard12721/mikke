@@ -31,7 +31,6 @@ interface PostGateway : AutoCloseable {
         context: ApiRequestContext,
         mediaId: String,
         caption: String?,
-        visibility: String,
         location: GeoPoint,
         accuracyMeters: Double,
     ): Post
@@ -61,12 +60,6 @@ interface PostGateway : AutoCloseable {
         context: ApiRequestContext,
         postId: String,
         caption: String,
-    ): Post
-
-    suspend fun updateVisibility(
-        context: ApiRequestContext,
-        postId: String,
-        visibility: String,
     ): Post
 
     suspend fun deletePost(

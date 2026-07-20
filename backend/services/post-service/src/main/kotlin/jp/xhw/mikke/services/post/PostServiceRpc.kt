@@ -38,7 +38,6 @@ class PostServiceRpc(
                         authorUserId = authorUserId,
                         mediaId = mediaId,
                         caption = request.caption,
-                        visibility = request.visibility.toDomain(),
                         location =
                             PostLocation(
                                 latitude = request.location.latitude,
@@ -199,25 +198,6 @@ class PostServiceRpc(
             }
 
         return UpdatePostCaptionResponse
-            .newBuilder()
-            .setPost(post.toProto())
-            .build()
-    }
-
-    override suspend fun updatePostVisibility(request: UpdatePostVisibilityRequest): UpdatePostVisibilityResponse {
-        val authorUserId = request.actor.toUserId()
-        val postId = parseGrpcUuid(request.postId, "post_id").let(::PostId)
-
-        val post =
-            mapRpcExceptions {
-                postService.updatePostVisibility(
-                    postId = postId,
-                    authorUserId = authorUserId,
-                    visibility = request.visibility.toDomain(),
-                )
-            }
-
-        return UpdatePostVisibilityResponse
             .newBuilder()
             .setPost(post.toProto())
             .build()

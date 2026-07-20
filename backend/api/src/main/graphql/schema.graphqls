@@ -189,7 +189,6 @@ type Mutation {
   submitGuess(input: SubmitGuessInput!): GuessResult!
   unblockUser(input: UserIdInput!): BooleanPayload!
   updatePostCaption(input: UpdatePostCaptionInput!): Post!
-  updatePostVisibility(input: UpdatePostVisibilityInput!): Post!
   updateProfile(input: UpdateProfileInput!): CurrentUser!
 }
 
@@ -301,11 +300,6 @@ enum GuessRankingMetric {
   TOTAL_SCORE
 }
 
-enum PostVisibility {
-  FRIENDS
-  PRIVATE
-}
-
 input ChangePasswordInput {
   currentPassword: String!
   newPassword: String!
@@ -327,7 +321,6 @@ input CreatePostInput {
   caption: String
   location: GeoPointInput!
   mediaId: String!
-  visibility: PostVisibility!
 }
 
 input CreatePostPhotoUploadInput {
@@ -374,11 +367,6 @@ input SubmitGuessInput {
 input UpdatePostCaptionInput {
   caption: String!
   postId: String!
-}
-
-input UpdatePostVisibilityInput {
-  postId: String!
-  visibility: PostVisibility!
 }
 
 input UpdateProfileInput {
