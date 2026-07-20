@@ -3,7 +3,6 @@ package jp.xhw.mikke.services.post.application
 import jp.xhw.mikke.platform.pagination.CreatedAtIdCursor
 import jp.xhw.mikke.services.post.model.Post
 import jp.xhw.mikke.services.post.model.PostId
-import jp.xhw.mikke.services.post.model.PostVisibility
 import jp.xhw.mikke.services.post.model.UserId
 import kotlin.time.Instant
 
