@@ -91,6 +91,24 @@ class GrpcPostGateway(
             PageResult(response.postsList.map { it.toPost() }, response.pageInfo.toPageInfo())
         }
 
+    override suspend fun listUserPosts(
+        context: ApiRequestContext,
+        userId: String,
+        page: PageInput,
+    ): PageResult<Post> =
+        call {
+            val response =
+                stub.listUserPosts(
+                    ListUserPostsRequest
+                        .newBuilder()
+                        .setUserId(userId)
+                        .setPage(page.toProto())
+                        .setActor(context.requireActorProto())
+                        .build(),
+                )
+            PageResult(response.postsList.map { it.toPost() }, response.pageInfo.toPageInfo())
+        }
+
     override suspend fun updateCaption(
         context: ApiRequestContext,
         postId: String,
