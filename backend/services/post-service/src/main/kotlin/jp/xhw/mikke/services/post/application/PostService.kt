@@ -56,7 +56,7 @@ class PostService(
                 authorUserId = command.authorUserId,
                 mediaId = command.mediaId,
                 caption = command.caption,
-                visibility = command.visibility,
+                visibility = PostVisibility.FRIENDS,
                 status = PostStatus.ACTIVE,
                 location = command.location,
                 createdAt = now,
@@ -388,53 +388,6 @@ class PostService(
         }
     }
 
-    suspend fun updatePostVisibility(
-        postId: PostId,
-        authorUserId: UserId,
-        visibility: PostVisibility,
-    ): Post {
-        userStatusChecker.requireActiveUser(authorUserId)
-        val now = clock.now()
-
-        return transactionRunner.runInTransaction {
-            val existing =
-                postRepository.findById(postId)
-                    ?: throw NotFoundException("post not found")
-
-            if (existing.status == PostStatus.DELETED) {
-                throw NotFoundException("post not found")
-            }
-            if (existing.authorUserId != authorUserId) {
-                throw PermissionDeniedException("only the author can update this post")
-            }
-
-            val updated =
-                postRepository.updateVisibility(postId, visibility, now)
-                    ?: throw NotFoundException("post not found")
-
-            outboxRepository.append(
-                OutboxEntry(
-                    id = Uuid.random(),
-                    eventType = PostEventTypes.VISIBILITY_UPDATED,
-                    aggregateType = AGGREGATE_TYPE,
-                    aggregateId = updated.id.value,
-                    payloadJson =
-                        encodePostEventPayload(
-                            PostVisibilityUpdatedPayload(
-                                postId = updated.id.value.toString(),
-                                authorUserId = updated.authorUserId.value.toString(),
-                                oldVisibility = existing.visibility.name,
-                                newVisibility = updated.visibility.name,
-                                updatedAt = now.toString(),
-                            ),
-                        ),
-                    createdAt = now,
-                ),
-            )
-            updated
-        }
-    }
-
     private suspend fun filterVisiblePosts(
         posts: List<Post>,
         viewerUserId: UserId,
@@ -484,18 +437,13 @@ class PostService(
             return post
         }
 
-        if (post.visibility == PostVisibility.PRIVATE) {
-            throw PermissionDeniedException("post is private")
-        }
-
         val resolvedActiveUsers =
             activeUsers ?: userStatusChecker.filterActiveUsers(setOf(viewerUserId, post.authorUserId))
         if (viewerUserId !in resolvedActiveUsers || post.authorUserId !in resolvedActiveUsers) {
             throw NotFoundException("post not found")
         }
 
-        if (post.visibility == PostVisibility.FRIENDS &&
-            !canViewFriendPosts(
+        if (!canViewFriendPosts(
                 viewerUserId = viewerUserId,
                 authorUserId = post.authorUserId,
                 friendshipVisibilityByAuthor = friendshipVisibilityByAuthor,
@@ -539,7 +487,6 @@ data class CreatePostCommand(
     val authorUserId: UserId,
     val mediaId: MediaId,
     val caption: String,
-    val visibility: PostVisibility,
     val location: PostLocation,
 )
 

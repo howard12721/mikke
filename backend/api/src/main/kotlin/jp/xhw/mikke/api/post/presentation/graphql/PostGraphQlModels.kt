@@ -9,15 +9,9 @@ import jp.xhw.mikke.api.media.presentation.graphql.toGraphQl
 import jp.xhw.mikke.api.user.presentation.graphql.User
 import jp.xhw.mikke.api.user.presentation.graphql.toGraphQl
 
-enum class PostVisibility {
-    FRIENDS,
-    PRIVATE,
-}
-
 data class CreatePostInput(
     val mediaId: String,
     val caption: String? = null,
-    val visibility: PostVisibility,
     val location: GeoPointInput,
     val accuracyMeters: Double,
 )
@@ -25,11 +19,6 @@ data class CreatePostInput(
 data class UpdatePostCaptionInput(
     val postId: String,
     val caption: String,
-)
-
-data class UpdatePostVisibilityInput(
-    val postId: String,
-    val visibility: PostVisibility,
 )
 
 data class DeletePostPayload(

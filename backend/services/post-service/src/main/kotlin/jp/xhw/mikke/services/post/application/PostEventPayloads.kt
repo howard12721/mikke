@@ -23,15 +23,6 @@ data class PostDeletedPayload(
 )
 
 @Serializable
-data class PostVisibilityUpdatedPayload(
-    @SerialName("post_id") val postId: String,
-    @SerialName("author_user_id") val authorUserId: String,
-    @SerialName("old_visibility") val oldVisibility: String,
-    @SerialName("new_visibility") val newVisibility: String,
-    @SerialName("updated_at") val updatedAt: String,
-)
-
-@Serializable
 data class PostCaptionUpdatedPayload(
     @SerialName("post_id") val postId: String,
     @SerialName("author_user_id") val authorUserId: String,
@@ -43,7 +34,5 @@ private val postEventJson = Json { encodeDefaults = true }
 internal fun encodePostEventPayload(payload: PostCreatedPayload): String = postEventJson.encodeToString(payload)
 
 internal fun encodePostEventPayload(payload: PostDeletedPayload): String = postEventJson.encodeToString(payload)
-
-internal fun encodePostEventPayload(payload: PostVisibilityUpdatedPayload): String = postEventJson.encodeToString(payload)
 
 internal fun encodePostEventPayload(payload: PostCaptionUpdatedPayload): String = postEventJson.encodeToString(payload)

@@ -135,7 +135,6 @@ fun postGrpcAuthPolicies(): Map<String, jp.xhw.mikke.platform.auth.grpc.GrpcEndp
             PostServiceGrpc.getListMyPostsMethod(),
             PostServiceGrpc.getDeletePostMethod(),
             PostServiceGrpc.getUpdatePostCaptionMethod(),
-            PostServiceGrpc.getUpdatePostVisibilityMethod(),
         ).associate { method ->
             method.fullMethodName to
                 jp.xhw.mikke.platform.auth.grpc.GrpcEndpointAuthPolicy

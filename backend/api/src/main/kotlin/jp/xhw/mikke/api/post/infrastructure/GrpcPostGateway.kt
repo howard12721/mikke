@@ -23,7 +23,6 @@ class GrpcPostGateway(
         context: ApiRequestContext,
         mediaId: String,
         caption: String?,
-        visibility: String,
         location: GeoPoint,
         accuracyMeters: Double,
     ): Post =
@@ -34,7 +33,6 @@ class GrpcPostGateway(
                         .newBuilder()
                         .setMediaId(mediaId)
                         .setCaption(caption.orEmpty())
-                        .setVisibility(visibility.toPostVisibility())
                         .setLocation(location.toProto())
                         .setAccuracyMeters(accuracyMeters)
                         .setActor(context.requireActorProto())
@@ -127,24 +125,6 @@ class GrpcPostGateway(
                 .toPost()
         }
 
-    override suspend fun updateVisibility(
-        context: ApiRequestContext,
-        postId: String,
-        visibility: String,
-    ): Post =
-        call {
-            stub
-                .updatePostVisibility(
-                    UpdatePostVisibilityRequest
-                        .newBuilder()
-                        .setPostId(postId)
-                        .setVisibility(visibility.toPostVisibility())
-                        .setActor(context.requireActorProto())
-                        .build(),
-                ).post
-                .toPost()
-        }
-
     override suspend fun deletePost(
         context: ApiRequestContext,
         postId: String,
@@ -186,10 +166,3 @@ private fun ProtoPost.toPost(): Post =
         createdAt = createdAt.toIsoString(),
         updatedAt = updatedAt.toIsoString(),
     )
-
-private fun String.toPostVisibility(): PostVisibility =
-    when (uppercase()) {
-        "FRIENDS", "POST_VISIBILITY_FRIENDS" -> PostVisibility.POST_VISIBILITY_FRIENDS
-        "PRIVATE", "POST_VISIBILITY_PRIVATE" -> PostVisibility.POST_VISIBILITY_PRIVATE
-        else -> PostVisibility.POST_VISIBILITY_UNSPECIFIED
-    }

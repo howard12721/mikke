@@ -18,7 +18,6 @@ class PostApiService(
         context: ApiRequestContext,
         mediaId: String,
         caption: String?,
-        visibility: String,
         location: GeoPoint,
         accuracyMeters: Double,
     ): Post =
@@ -26,7 +25,6 @@ class PostApiService(
             context = context,
             mediaId = mediaId.requireUuidText("mediaId"),
             caption = caption?.trim()?.takeIf { it.isNotEmpty() },
-            visibility = visibility,
             location = location,
             accuracyMeters = accuracyMeters,
         )
@@ -108,12 +106,6 @@ class PostApiService(
         postId: String,
         caption: String,
     ): Post = postGateway.updateCaption(context, postId.requireText("postId"), caption.trim())
-
-    suspend fun updateVisibility(
-        context: ApiRequestContext,
-        postId: String,
-        visibility: String,
-    ): Post = postGateway.updateVisibility(context, postId.requireText("postId"), visibility)
 
     suspend fun deletePost(
         context: ApiRequestContext,

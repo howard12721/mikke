@@ -25,12 +25,6 @@ interface PostRepository {
         updatedAt: Instant,
     ): Post?
 
-    fun updateVisibility(
-        id: PostId,
-        visibility: PostVisibility,
-        updatedAt: Instant,
-    ): Post?
-
     fun listByAuthor(
         authorUserId: UserId,
         includeDeleted: Boolean,

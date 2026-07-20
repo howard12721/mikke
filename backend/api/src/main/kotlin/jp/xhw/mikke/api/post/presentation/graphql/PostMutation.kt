@@ -18,7 +18,6 @@ class PostMutation(
                 context = environment.apiRequestContext(),
                 mediaId = input.mediaId,
                 caption = input.caption,
-                visibility = input.visibility.name,
                 location = input.location.toApplication(),
                 accuracyMeters = input.accuracyMeters,
             ).toGraphQl()
@@ -32,17 +31,6 @@ class PostMutation(
                 context = environment.apiRequestContext(),
                 postId = input.postId,
                 caption = input.caption,
-            ).toGraphQl()
-
-    suspend fun updatePostVisibility(
-        input: UpdatePostVisibilityInput,
-        environment: DataFetchingEnvironment,
-    ): Post =
-        postApiService
-            .updateVisibility(
-                context = environment.apiRequestContext(),
-                postId = input.postId,
-                visibility = input.visibility.name,
             ).toGraphQl()
 
     suspend fun deletePost(

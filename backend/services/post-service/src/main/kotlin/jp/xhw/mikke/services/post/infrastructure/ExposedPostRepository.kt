@@ -101,24 +101,6 @@ class ExposedPostRepository : PostRepository {
         return findById(id)
     }
 
-    override fun updateVisibility(
-        id: PostId,
-        visibility: PostVisibility,
-        updatedAt: Instant,
-    ): Post? {
-        val updated =
-            PostsTable.update({ (PostsTable.id eq id.value) and (PostsTable.status eq PostStatus.ACTIVE.name) }) {
-                it[PostsTable.visibility] = visibility.name
-                it[PostsTable.updatedAt] = updatedAt.toJavaInstant()
-            }
-
-        if (updated == 0) {
-            return null
-        }
-
-        return findById(id)
-    }
-
     override fun listByAuthor(
         authorUserId: UserId,
         includeDeleted: Boolean,
