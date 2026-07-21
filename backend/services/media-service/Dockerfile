@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.24
+# syntax=docker/dockerfile:1.25
 FROM eclipse-temurin:25.0.3_9-jdk-jammy AS builder
 
 WORKDIR /workspace
