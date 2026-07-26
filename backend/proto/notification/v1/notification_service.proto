@@ -77,7 +77,8 @@ message UpdateNotificationPreferencesResponse {
 message RegisterPushTokenRequest {
   string device_id = 1;
   PushPlatform platform = 2;
-  string token = 3;
+  string firebase_installation_id = 3;
+  mikke.common.v1.ActorContext actor = 4;
 }
 
 message RegisterPushTokenResponse {
@@ -85,7 +86,9 @@ message RegisterPushTokenResponse {
 }
 
 message DeletePushTokenRequest {
-  string push_token_id = 1;
+  string device_id = 1;
+  PushPlatform platform = 2;
+  mikke.common.v1.ActorContext actor = 3;
 }
 
 message DeletePushTokenResponse {}

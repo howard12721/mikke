@@ -28,6 +28,7 @@ dependencies {
     implementation(project(":services:post-service"))
     implementation(project(":services:friendship-service"))
     implementation(project(":services:guess-service"))
+    implementation(project(":services:notification-service"))
 
     implementation(libs.bundles.ktor.server)
     implementation(libs.graphql.kotlin.ktor.server)

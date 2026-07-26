@@ -180,9 +180,11 @@ type Mutation {
   createPost(input: CreatePostInput!): Post!
   createPostPhotoUploadUrl(input: CreatePostPhotoUploadInput!): MediaUploadUrl!
   deletePost(postId: String!): DeletePostPayload!
+  deletePushInstallation(input: DeletePushInstallationInput!): Boolean!
   login(input: LoginInput!): AuthPayload!
   logout: LogoutPayload!
   register(input: RegisterInput!): AuthPayload!
+  registerPushInstallation(input: RegisterPushInstallationInput!): PushInstallation!
   rejectFriendRequest(input: FriendRequestIdInput!): FriendRequest!
   removeFriend(input: UserIdInput!): BooleanPayload!
   sendFriendRequest(input: SendFriendRequestInput!): FriendRequest!
@@ -225,6 +227,14 @@ type PostUserRankingEntry {
   postCount: String!
   rank: String!
   user: User
+}
+
+type PushInstallation {
+  deviceId: String!
+  enabled: Boolean!
+  id: String!
+  lastSeenAt: String!
+  platform: PushPlatform!
 }
 
 type Query {
@@ -300,6 +310,11 @@ enum GuessRankingMetric {
   TOTAL_SCORE
 }
 
+enum PushPlatform {
+  ANDROID
+  IOS
+}
+
 input ChangePasswordInput {
   currentPassword: String!
   newPassword: String!
@@ -329,6 +344,11 @@ input CreatePostPhotoUploadInput {
   originalFileName: String
 }
 
+input DeletePushInstallationInput {
+  deviceId: String!
+  platform: PushPlatform!
+}
+
 input FriendRequestIdInput {
   friendRequestId: String!
 }
@@ -353,6 +373,12 @@ input RegisterInput {
   email: String!
   password: String!
   username: String!
+}
+
+input RegisterPushInstallationInput {
+  deviceId: String!
+  firebaseInstallationId: String!
+  platform: PushPlatform!
 }
 
 input SendFriendRequestInput {

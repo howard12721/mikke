@@ -26,7 +26,7 @@ services:
       start_period: 20s
 
   redis:
-    image: redis:8.8.0-alpine3.23
+    image: redis:8.8.1-alpine3.23
     container_name: mikke-redis
     command: [ "redis-server", "--appendonly", "yes" ]
     ports:
@@ -270,6 +270,14 @@ services:
       MARIADB_PASSWORD: mikke
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      FRIENDSHIP_SERVICE_HOST: friendship-service
+      FRIENDSHIP_SERVICE_PORT: "50052"
+      FRIENDSHIP_SERVICE_TARGET: dns:///friendship-service:50052
+      MIKKE_INTERNAL_RPC_TOKEN: mikke-dev-internal-rpc-token
+      NOTIFICATION_REGISTRATION_ENCRYPTION_KEY_BASE64: bWlra2UtZGV2LXB1c2gtcmVnaXN0cmF0aW9uLWtleSE=
+      FCM_ENABLED: "${FCM_ENABLED:-false}"
+      FIREBASE_PROJECT_ID: "${FIREBASE_PROJECT_ID:-}"
+      FIREBASE_SERVICE_ACCOUNT_JSON_BASE64: "${FIREBASE_SERVICE_ACCOUNT_JSON_BASE64:-}"
     ports:
       - "50057:50057"
     depends_on:
@@ -277,6 +285,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      friendship-service:
+        condition: service_started
 
   flyway-identity-service:
     <<: *flyway-common

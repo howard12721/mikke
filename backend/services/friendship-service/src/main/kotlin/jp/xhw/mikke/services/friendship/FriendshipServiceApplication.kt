@@ -100,7 +100,6 @@ fun friendshipGrpcAuthPolicies(): Map<String, GrpcEndpointAuthPolicy> {
             FriendshipServiceGrpc.getBlockUserMethod(),
             FriendshipServiceGrpc.getUnblockUserMethod(),
             FriendshipServiceGrpc.getGetFriendshipMethod(),
-            FriendshipServiceGrpc.getListFriendsMethod(),
             FriendshipServiceGrpc.getListIncomingFriendRequestsMethod(),
             FriendshipServiceGrpc.getListOutgoingFriendRequestsMethod(),
             FriendshipServiceGrpc.getBatchGetFriendshipSummariesMethod(),
@@ -108,6 +107,8 @@ fun friendshipGrpcAuthPolicies(): Map<String, GrpcEndpointAuthPolicy> {
 
     return internalRequired +
         mapOf(
+            FriendshipServiceGrpc.getListFriendsMethod().fullMethodName to
+                GrpcEndpointAuthPolicy.internalRequired("api", "notification-service"),
             FriendshipServiceGrpc.getCheckCanViewUserPostsMethod().fullMethodName to
                 GrpcEndpointAuthPolicy.internalRequired("api", "post-service", "media-service"),
             FriendshipServiceGrpc.getCheckCanViewUserPostsForViewerMethod().fullMethodName to

@@ -63,6 +63,35 @@ spec:
           value: redis
         - name: REDIS_PORT
           value: '6379'
+        - name: FRIENDSHIP_SERVICE_HOST
+          value: friendship-service
+        - name: FRIENDSHIP_SERVICE_PORT
+          value: '50052'
+        - name: FRIENDSHIP_SERVICE_TARGET
+          value: dns:///friendship-service:50052
+        - name: MIKKE_INTERNAL_RPC_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: internal-rpc-auth
+              key: token
+        - name: NOTIFICATION_REGISTRATION_ENCRYPTION_KEY_BASE64
+          valueFrom:
+            secretKeyRef:
+              name: firebase-admin
+              key: registration-encryption-key-base64
+        - name: FCM_ENABLED
+          value: 'true'
+        - name: FIREBASE_PROJECT_ID
+          valueFrom:
+            secretKeyRef:
+              name: firebase-admin
+              key: project-id
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /var/run/secrets/firebase/service-account.json
+        volumeMounts:
+        - name: firebase-admin
+          mountPath: /var/run/secrets/firebase
+          readOnly: true
         readinessProbe:
           grpc:
             port: 50057
@@ -73,3 +102,10 @@ spec:
             port: 50057
           initialDelaySeconds: 30
           periodSeconds: 20
+      volumes:
+      - name: firebase-admin
+        secret:
+          secretName: firebase-admin
+          items:
+          - key: service-account.json
+            path: service-account.json
