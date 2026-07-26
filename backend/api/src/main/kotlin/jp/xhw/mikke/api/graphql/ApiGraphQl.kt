@@ -11,6 +11,7 @@ import jp.xhw.mikke.api.friendship.presentation.graphql.FriendshipQuery
 import jp.xhw.mikke.api.guess.presentation.graphql.GuessMutation
 import jp.xhw.mikke.api.guess.presentation.graphql.GuessQuery
 import jp.xhw.mikke.api.media.presentation.graphql.MediaMutation
+import jp.xhw.mikke.api.notification.presentation.graphql.NotificationMutation
 import jp.xhw.mikke.api.post.presentation.graphql.PostMutation
 import jp.xhw.mikke.api.post.presentation.graphql.PostQuery
 import jp.xhw.mikke.api.user.presentation.graphql.UserMutation
@@ -47,6 +48,7 @@ val apiGraphQlPackages =
         "jp.xhw.mikke.api.post.presentation.graphql",
         "jp.xhw.mikke.api.friendship.presentation.graphql",
         "jp.xhw.mikke.api.guess.presentation.graphql",
+        "jp.xhw.mikke.api.notification.presentation.graphql",
     )
 
 fun apiGraphQlQueries(dependencies: ApiDependencies): List<Query> =
@@ -75,6 +77,7 @@ fun apiGraphQlMutations(dependencies: ApiDependencies): List<Mutation> =
             userApiService = dependencies.userApiService,
         ),
         GuessMutation(guessApiService = dependencies.guessApiService),
+        NotificationMutation(notificationApiService = dependencies.notificationApiService),
     )
 
 fun apiGraphQlQueryTypes(): List<KClass<*>> =
@@ -94,6 +97,7 @@ fun apiGraphQlMutationTypes(): List<KClass<*>> =
         PostMutation::class,
         FriendshipMutation::class,
         GuessMutation::class,
+        NotificationMutation::class,
     )
 
 class ApiQuery : Query {

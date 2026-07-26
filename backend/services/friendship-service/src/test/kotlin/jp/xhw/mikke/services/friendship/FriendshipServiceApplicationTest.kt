@@ -33,5 +33,9 @@ class FriendshipServiceApplicationTest {
             GrpcEndpointAuthPolicy.internalRequired("api", "post-service", "media-service"),
             policies[FriendshipServiceGrpc.getCheckCanViewUserPostsForViewerMethod().fullMethodName],
         )
+        assertEquals(
+            GrpcEndpointAuthPolicy.internalRequired("api", "notification-service"),
+            policies[FriendshipServiceGrpc.getListFriendsMethod().fullMethodName],
+        )
     }
 }
