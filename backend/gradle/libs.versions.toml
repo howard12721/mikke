@@ -18,7 +18,7 @@ opentelemetry = "1.62.0"
 junit = "6.1.2"
 ktlint-plugin = "14.2.0"
 aws-sdk = "2.49.3"
-scrimage = "4.6.6"
+scrimage = "4.6.7"
 firebase-admin = "9.10.0"
 
 [libraries]
