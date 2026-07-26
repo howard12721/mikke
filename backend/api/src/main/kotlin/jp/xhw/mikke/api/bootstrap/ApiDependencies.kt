@@ -16,6 +16,11 @@ import jp.xhw.mikke.api.http.ApiErrorCode
 import jp.xhw.mikke.api.http.ApiHttpException
 import jp.xhw.mikke.api.media.application.*
 import jp.xhw.mikke.api.media.infrastructure.GrpcMediaGateway
+import jp.xhw.mikke.api.notification.application.NotificationApiService
+import jp.xhw.mikke.api.notification.application.NotificationGateway
+import jp.xhw.mikke.api.notification.application.PushInstallation
+import jp.xhw.mikke.api.notification.application.PushPlatform
+import jp.xhw.mikke.api.notification.infrastructure.GrpcNotificationGateway
 import jp.xhw.mikke.api.post.application.Post
 import jp.xhw.mikke.api.post.application.PostApiService
 import jp.xhw.mikke.api.post.application.PostGateway
@@ -46,6 +51,7 @@ class ApiDependencies(
         ),
     val friendshipApiService: FriendshipApiService = FriendshipApiService(UnavailableFriendshipGateway),
     val guessApiService: GuessApiService = GuessApiService(UnavailableGuessGateway),
+    val notificationApiService: NotificationApiService = NotificationApiService(UnavailableNotificationGateway),
     private val touchScope: CoroutineScope? = null,
     private val closeables: List<AutoCloseable> = emptyList(),
 ) : AutoCloseable {
@@ -74,6 +80,7 @@ class ApiDependencies(
             val friendshipGateway = GrpcFriendshipGateway.fromEnvironment()
             val guessGateway = GrpcGuessGateway.fromEnvironment()
             val guessApiService = GuessApiService(guessGateway = guessGateway)
+            val notificationGateway = GrpcNotificationGateway.fromEnvironment()
 
             return ApiDependencies(
                 authApiService = AuthApiService(identityAuthGateway = identityAuthGateway),
@@ -90,6 +97,7 @@ class ApiDependencies(
                     ),
                 friendshipApiService = FriendshipApiService(friendshipGateway = friendshipGateway),
                 guessApiService = guessApiService,
+                notificationApiService = NotificationApiService(notificationGateway = notificationGateway),
                 touchScope = touchScope,
                 closeables =
                     listOf(
@@ -100,6 +108,7 @@ class ApiDependencies(
                         postGateway,
                         friendshipGateway,
                         guessGateway,
+                        notificationGateway,
                         AutoCloseable { redis.close() },
                     ),
             )
@@ -317,6 +326,23 @@ private object UnavailableGuessGateway : GuessGateway {
         metric: String,
         page: PageInput,
     ): PageResult<GuessUserRankingEntry> = unavailableFeature()
+
+    override fun close() = Unit
+}
+
+private object UnavailableNotificationGateway : NotificationGateway {
+    override suspend fun registerPushInstallation(
+        context: ApiRequestContext,
+        deviceId: String,
+        platform: PushPlatform,
+        firebaseInstallationId: String,
+    ): PushInstallation = unavailableFeature()
+
+    override suspend fun deletePushInstallation(
+        context: ApiRequestContext,
+        deviceId: String,
+        platform: PushPlatform,
+    ): Unit = unavailableFeature()
 
     override fun close() = Unit
 }

@@ -14,6 +14,7 @@ sourceSets {
         proto {
             srcDir(rootProject.file("proto"))
             include("common/v1/*.proto")
+            include("friendship/v1/*.proto")
             include("notification/v1/*.proto")
         }
     }
@@ -27,13 +28,19 @@ dependencies {
     implementation(project(":events:guess-events"))
 
     implementation(libs.bundles.grpc.server)
+    implementation(libs.bundles.grpc.client)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.exposed.java.time)
     implementation(libs.bundles.database)
     implementation(libs.redis.client)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.firebase.admin)
 
     runtimeOnly(libs.logback.classic)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
