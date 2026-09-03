@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.25
-FROM flyway/flyway:12.11.0
+FROM flyway/flyway:13.5.0
 
 COPY base/database/migrations /flyway/migrations
 COPY images/migrations/run-migration.sh /flyway/run-migration.sh

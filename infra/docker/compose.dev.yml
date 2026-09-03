@@ -1,5 +1,5 @@
 x-flyway-common: &flyway-common
-  image: flyway/flyway:12.11.0
+  image: flyway/flyway:13.5.0
   depends_on:
     mariadb:
       condition: service_healthy
