@@ -17,7 +17,7 @@ kotlin-logging = "8.0.4"
 opentelemetry = "1.64.0"
 junit = "6.1.2"
 ktlint-plugin = "14.2.0"
-aws-sdk = "2.49.3"
+aws-sdk = "2.54.13"
 scrimage = "4.6.7"
 firebase-admin = "9.10.0"
 
